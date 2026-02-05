@@ -1,0 +1,152 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Source Files\ysieve">
+      <UniqueIdentifier>{98ca9082-e075-4fd1-bf94-28d2fc1f1332}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\aprcl">
+      <UniqueIdentifier>{7f64f714-0716-4fe6-9813-2a2c07e24680}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\batch_gcd">
+      <UniqueIdentifier>{4022add7-fb75-4cdf-a3bb-1655b369ae62}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ytools">
+      <UniqueIdentifier>{26d1a62e-4005-468f-909b-ec09ea30d7a4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\cuda_xface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ysieve\soe.h">
+      <Filter>Source Files\ysieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ysieve\soe_impl.h">
+      <Filter>Source Files\ysieve</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\aprcl\jacobi_sum.h">
+      <Filter>Source Files\aprcl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\aprcl\mpz_aprcl.h">
+      <Filter>Source Files\aprcl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\batch_factor.h">
+      <Filter>Source Files\batch_gcd</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\microecm.h">
+      <Filter>Source Files\batch_gcd</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tinyecm.h">
+      <Filter>Source Files\batch_gcd</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cofactorize.h">
+      <Filter>Source Files\batch_gcd</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\aprcl\tinyprp.h">
+      <Filter>Source Files\aprcl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ytools\threadpool.h">
+      <Filter>Source Files\ytools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\ytools\ytools.h">
+      <Filter>Source Files\ytools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\cmdOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\monty.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gpu_cofactorization.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\main.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\cuda_xface.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\util.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\gpu_cofactorization.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\count.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\linesieve.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\offsets.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\presieve.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\primes.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\roots.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\soe.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\soe_util.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\tiny.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\worker.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ysieve\wrapper.c">
+      <Filter>Source Files\ysieve</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\aprcl\mpz_aprcl.c">
+      <Filter>Source Files\aprcl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\batch_factor.c">
+      <Filter>Source Files\batch_gcd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\microecm.c">
+      <Filter>Source Files\batch_gcd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\tinyecm.c">
+      <Filter>Source Files\batch_gcd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\cofactorize_siqs.c">
+      <Filter>Source Files\batch_gcd</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\aprcl\tinyprp.c">
+      <Filter>Source Files\aprcl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\monty.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ytools\ytools.c">
+      <Filter>Source Files\ytools</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\ytools\threadpool.c">
+      <Filter>Source Files\ytools</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\cmdOptions.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
