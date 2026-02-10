@@ -478,6 +478,7 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 
 	uint64_t lcg = 0xbaddecafbaddecafull;
 
+	int total_curves = 0;
 	int num2lp_retest = 0;
 	int orig_size = t->array_sz;
 	int no_factors = 0;
@@ -517,6 +518,8 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 		// copy factors back to host
 		CUDA_TRY(cuMemcpyDtoHAsync(t->factors96, t->gpu_res32_array,
 			t->array_sz * 3 * sizeof(uint32_t), t->stream))
+
+		total_curves += threads_per_block * num_blocks;
 
 		// swap factored inputs to the end of the list
 		int n = t->array_sz;
@@ -689,8 +692,8 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 	CUDA_TRY(cuEventElapsedTime(&elapsed_ms,
 		t->start_event, t->end_event))
 
-	printf("found %d total factors of 3LP inputs in %1.4f ms\n", 
-		total_factors, elapsed_ms);
+	printf("found %d total factors of 3LP inputs with %d total curves in %1.4f ms\n", 
+		total_factors, total_curves, elapsed_ms);
 	t->array_sz = total_factors;
 
 	/* we have to synchronize now */

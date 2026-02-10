@@ -1190,6 +1190,274 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 	return rb->num_success;
 }
 
+int meas_prac(uint64_t c, double v)
+{
+	uint64_t d, e, r;
+	int print_seq = 0;
+	int print_vals = 0;
+	int tmp;
+	int print_strs = 1;
+
+	// we require c != 0
+	int shift = 0;
+	while ((c & 1) == 0)
+	{
+		c >>= 1;
+		shift++;
+	}
+
+	d = c;
+	r = (uint64_t)((double)d * v + 0.5);
+
+	d = c - r;
+	e = 2 * r - c;
+
+	int p1val = 1; 
+	int p2val = 1;
+	int p3val = 1;
+	int p4val = 0;
+
+	char p1str[8];
+	char p2str[8];
+	char p3str[8];
+	char p4str[8];
+	char tstr[8];
+
+	strcpy(p1str, "p1");
+	strcpy(p2str, "p2");
+	strcpy(p3str, "p3");
+	strcpy(p4str, "p4");
+
+	// the first one is always a doubling
+	// point1 is [1]P
+	//pt1.X[0] = pt2.X[0] = pt3.X[0] = P->X[0];
+	//pt1.Z[0] = pt2.Z[0] = pt3.Z[0] = P->Z[0];
+	//pt1.X[1] = pt2.X[1] = pt3.X[1] = P->X[1];
+	//pt1.Z[1] = pt2.Z[1] = pt3.Z[1] = P->Z[1];
+	//pt1.X[2] = pt2.X[2] = pt3.X[2] = P->X[2];
+	//pt1.Z[2] = pt2.Z[2] = pt3.Z[2] = P->Z[2];
+	//
+	//modsub96(pt1.X, pt1.Z, d1, n);
+	//modadd96(pt1.X, pt1.Z, s1, n);
+
+	// point2 is [2]P
+	//udup96(s, rho, n, s1, d1, &pt1);
+	if (print_strs) printf("p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];\n");
+	if (print_strs) printf("p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];\n");
+	if (print_strs) printf("p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];\n");
+	if (print_strs) printf("p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];\n");
+	if (print_strs) printf("p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];\n");
+	if (print_strs) printf("p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];\n");
+	if (print_strs) printf("udup96as(s, rho, n, &%s); // %d = 2 * %d\n",
+		p1str, p1val * 2, p1val);
+
+	int cost = 5;
+	int seqnum = 0;
+	int swaps = 0;
+	//printf("sequence for %06lu:\n", c);
+
+	p1val = 2;
+
+	while (d != e)
+	{
+		if (d < e)
+		{
+			r = d;
+			d = e;
+			e = r;
+			//swap96(pt1.X, pt2.X);
+			//swap96(pt1.Z, pt2.Z);
+			tmp = p1val;
+			p1val = p2val;
+			p2val = tmp;
+
+			strcpy(tstr, p1str);
+			strcpy(p1str, p2str);
+			strcpy(p2str, tstr);
+
+			if (print_seq) printf("0,");
+			//if (print_vals) printf("0: %d,%d,%d,%d\n", p1val, p2val, p3val, p4val);
+			seqnum++;
+			swaps += 2;
+		}
+		if (d - e <= e / 4 && ((d + e) % 3) == 0)
+		{
+			d = (2 * d - e) / 3;
+			e = (e - d) / 2;
+
+			//uadd96(rho, n, pt1, pt2, pt3, &pt4); // T = A + B (C)
+			//uadd96(rho, n, pt4, pt1, pt2, &pt5); // T2 = T + A (B)
+			//uadd96(rho, n, pt2, pt4, pt1, &pt2); // B = B + T (A)
+			//
+			//swap96(pt1.X, pt5.X);
+			//swap96(pt1.Z, pt5.Z);
+			printf("1,"); seqnum++;
+			cost += 18;
+		}
+		else if (d - e <= e / 4 && (d - e) % 6 == 0)
+		{
+			d = (d - e) / 2;
+
+			//modsub96(pt1.X, pt1.Z, d1, n);
+			//modadd96(pt1.X, pt1.Z, s1, n);
+			//
+			//uadd96(rho, n, pt1, pt2, pt3, &pt2);        // B = A + B (C)
+			//udup96(s, rho, n, s1, d1, &pt1);        // A = 2A
+			printf("2,"); seqnum++;
+			cost += 11;
+		}
+		else if ((d + 3) / 4 <= e)
+		{
+			d -= e;
+
+			//uadd96(rho, n, pt2, pt1, pt3, &pt4);        // T = B + A (C)
+			
+			//threeswap96(pt2.X, pt4.X, pt3.X);		// 2 <-- 4, 4 <-- 3, 3 <-- 2
+			//threeswap96(pt2.Z, pt4.Z, pt3.Z);
+			p4val = p2val + p1val;
+			if (print_vals) printf("3: [p4]%d = [p2]%d + [p1]%d ([p3]%d)\n",
+				p4val, p2val, p1val, p3val);
+			if (print_strs) printf("uadd96(rho, n, %s, %s, %s, &%s); // %d = %d + %d (%d)\n",
+				p2str, p1str, p3str, p4str, p4val, p2val, p1val, p3val);
+
+			tmp = p2val;
+			p2val = p4val;
+			p4val = p3val;
+			p3val = tmp;
+
+			strcpy(tstr, p2str);
+			strcpy(p2str, p4str);
+			strcpy(p4str, p3str);
+			strcpy(p3str, tstr);
+
+			//if (print_vals) printf("3: %d,%d,%d,%d\n", p1val, p2val, p3val, p4val);
+			if (print_seq) printf("3,");
+			swaps += 2;
+			seqnum++;
+			cost += 6;
+		}
+		else if ((d + e) % 2 == 0)
+		{
+			d = (d - e) / 2;
+
+			//modsub96(pt1.X, pt1.Z, d2, n);
+			//modadd96(pt1.X, pt1.Z, s2, n);
+			//
+			//uadd96(rho, n, pt2, pt1, pt3, &pt2);        // B = B + A (C)
+			tmp = p2val + p1val;
+			if (print_vals) printf("4: [p2]%d = [p2]%d + [p1]%d ([p3]%d)\n", tmp, p2val, p1val, p3val);
+			if (print_strs) printf("uadd96(rho, n, %s, %s, %s, &%s); // %d = %d + %d (%d)\n",
+				p2str, p1str, p3str, p2str, tmp, p2val, p1val, p3val);
+			p2val = tmp;
+			//udup96(s, rho, n, s2, d2, &pt1);        // A = 2A
+			if (print_vals) printf("4: [p1]%d = 2 * [p1]%d\n", p1val * 2, p1val);
+			if (print_strs) printf("udup96as(s, rho, n, &%s); // %d = 2 * %d\n",
+				p1str, p1val * 2, p1val);
+			p1val *= 2;
+			if (print_seq) printf("4,"); 
+			//if (print_vals) printf("4: %d,%d,%d,%d\n", p1val, p2val, p3val, p4val);
+			seqnum++;
+			cost += 11;
+		}
+		else if (d % 2 == 0)
+		{
+			d /= 2;
+
+			//modsub96(pt1.X, pt1.Z, d2, n);
+			//modadd96(pt1.X, pt1.Z, s2, n);
+			//
+			//uadd96(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
+			//udup96(s, rho, n, s2, d2, &pt1);        // A = 2A
+			printf("5,"); seqnum++;
+			cost += 11;
+		}
+		else if (d % 3 == 0)
+		{
+			d = d / 3 - e;
+
+			//modsub96(pt1.X, pt1.Z, d1, n);
+			//modadd96(pt1.X, pt1.Z, s1, n);
+			//
+			//udup96(s, rho, n, s1, d1, &pt4);        // T = 2A
+			//uadd96(rho, n, pt1, pt2, pt3, &pt5);        // T2 = A + B (C)
+			//uadd96(rho, n, pt4, pt1, pt1, &pt1);        // A = T + A (A)
+			//uadd96(rho, n, pt4, pt5, pt3, &pt4);        // T = T + T2 (C)
+			//
+			//threeswap96(pt3.X, pt2.X, pt4.X);
+			//threeswap96(pt3.Z, pt2.Z, pt4.Z);
+			printf("6,"); seqnum++;
+			cost += 23;
+		}
+		else if ((d + e) % 3 == 0)
+		{
+			d = (d - 2 * e) / 3;
+
+			//uadd96(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
+			//
+			//modsub96(pt1.X, pt1.Z, d2, n);
+			//modadd96(pt1.X, pt1.Z, s2, n);
+			//uadd96(rho, n, pt4, pt1, pt2, &pt2);        // B = T + A (B)
+			//udup96(s, rho, n, s2, d2, &pt4);        // T = 2A
+			//uadd96(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
+			printf("7,"); seqnum++;
+			cost += 23;
+		}
+		else if ((d - e) % 3 == 0)
+		{
+			d = (d - e) / 3;
+
+			//uadd96(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
+			//
+			//modsub96(pt1.X, pt1.Z, d2, n);
+			//modadd96(pt1.X, pt1.Z, s2, n);
+			//uadd96(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
+			//
+			//swap96(pt2.X, pt4.X);
+			//swap96(pt2.Z, pt4.Z);
+			//
+			//udup96(s, rho, n, s2, d2, &pt4);        // T = 2A
+			//uadd96(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
+			printf("8,"); seqnum++;
+			cost += 23;
+		}
+		else
+		{
+			e /= 2;
+
+			//modsub96(pt2.X, pt2.Z, d2, n);
+			//modadd96(pt2.X, pt2.Z, s2, n);
+			//
+			//uadd96(rho, n, pt3, pt2, pt1, &pt3);        // C = C + B (A)
+			//udup96(s, rho, n, s2, d2, &pt2);        // B = 2B
+			printf("9,"); seqnum++;
+			cost += 11;
+		}
+	}
+
+	//uadd96(rho, n, pt1, pt2, pt3, P);     // A = A + B (C)
+	if (print_vals) printf("a: p[%d] = [p1]%d + [p2]%d ([p3]%d)\n", 
+		p1val + p2val, p1val, p2val, p3val);
+	if (print_strs) printf("uadd96(rho, n, %s, %s, %s, P); // %d = %d + %d (%d)\n",
+		p1str, p2str, p3str, p1val + p2val, p1val, p2val, p3val);
+	p1val = p1val + p2val;
+	//if (print_vals) printf("a: %d,%d,%d,%d\n", p1val, p2val, p3val, p4val);
+	if (print_seq) printf("10,"); 
+	seqnum++;
+	cost += 6;
+
+	int i;
+	for (i = 0; i < shift; i++)
+	{
+		//modsub96(P->X, P->Z, d1, n);
+		//modadd96(P->X, P->Z, s1, n);
+		//udup96(s, rho, n, s1, d1, P);     // P = 2P
+		if (print_seq) printf("11,"); 
+		seqnum++;
+		cost += 5;
+	}
+
+	//printf("\ntotal cost for %d steps = %d + %d swaps\n", seqnum, cost, swaps);
+}
 
 int main(int argc, char **argv) {
     char fname[80];
@@ -1312,6 +1580,161 @@ int main(int argc, char **argv) {
 		mpz_clear(tmp3);
 		mpz_clear(tmp4);
 
+		return 0;
+	}
+	else if (batch_alg == 3)
+	{
+		printf("b1=500\n");
+		int stg1 = 500;
+		if (stg1 > 400)
+		{
+			// ./cuda_3lp -b1 500 -b2 100000 -m 2
+			// anything greater than 400 gets B1=500
+			// pair-optimized only within the set 400 < p < 500
+			meas_prac(184861, 0.628445063812485882);//[401,461] is 155.0, savings = 2
+			meas_prac(409, 0.551390822543526449);
+			meas_prac(419, 0.524531838023777786);
+			meas_prac(421, 0.643616254685781319);
+			meas_prac(431, 0.551390822543526449);
+			meas_prac(433, 0.553431118763021646);
+			meas_prac(439, 0.618033988749894903);
+			meas_prac(217513, 0.586747080461318182);//[443,491] is 156.0, savings = 1
+			meas_prac(449, 0.612429949509495031);
+			meas_prac(457, 0.612429949509495031);
+			//meas_prac(461, 0.520959819992697026);
+			//[401,461] is 155.0, savings = 2
+			//[43, 461] is 126.0, savings = 2
+			//[367,461] is 156.0, savings = 4
+			//[379,461] is 156.0, savings = 3
+			meas_prac(463, 0.553431118763021646);
+			meas_prac(467, 0.553431118763021646);
+			meas_prac(479, 0.618033988749894903);
+			meas_prac(487, 0.591965645556728037);
+			//[431,491] is 155.0, savings = 1
+			//[11,491] is 108.0, savings = 2
+			//[443,491] is 156.0, savings = 1
+			//[457,491] is 156.0, savings = 1
+			//meas_prac(491, 0.618347119656228017);
+			meas_prac(499, 0.618033988749894903);
+
+		}
+
+		if (stg1 > 300)
+		{
+			// anything greater than 300 gets B1=400
+			// pair-optimized within the set 250 < p < 400
+			meas_prac(307, 0.580178728295464130);
+			meas_prac(311, 0.618033988749894903);
+			meas_prac(313, 0.618033988749894903);
+			meas_prac(317, 0.618033988749894903);
+			//meas_prac(331, 0.543797196679826511);
+			meas_prac(337, 0.618033988749894903);
+			meas_prac(124573, 0.552705982126542983); //[347,359], savings = 3
+			meas_prac(349, 0.632839806088706269);
+			meas_prac(95663, 0.618033988749894903);// [271,353], savings = 2
+			//meas_prac(359, 0.612429949509495031);
+			meas_prac(142763, 0.524817056539543136);// [367,389], savings = 1
+			meas_prac(373, 0.524531838023777786);
+			meas_prac(145157, 0.580178728295464130);//[379,383], savings = 2
+			//meas_prac(383, 0.537965503694917802);
+			//meas_prac(389, 0.632839806088706269);
+			meas_prac(397, 0.580178728295464130);
+			// one more factor of 7 will fit - and it pairs with 331, savings 2
+			meas_prac(2317, 0.618033988749894903);  // 7 x 331, savings 2
+		}
+
+		if (stg1 > 250)
+		{
+			// anything greater than 250 gets B1=300
+			// pair-optimized within the set 200 < p < 300
+			meas_prac(251, 0.541554796058780874);
+			//meas_prac(257, 0.551390822543526449); // paired with 223 below
+			meas_prac(263, 0.612429949509495031);
+			meas_prac(269, 0.618033988749894903);
+			if (stg1 > 300)
+			{
+				// paired with 353, above
+			}
+			else
+			{
+				meas_prac(271, 0.618033988749894903);
+			}
+			meas_prac(277, 0.618033988749894903);
+			meas_prac(281, 0.580178728295464130);
+			meas_prac(283, 0.580178728295464130);
+			meas_prac(293, 0.551390822543526449);
+		}
+
+		if (stg1 > 200)
+		{
+			// anything greater than 200 gets B1=250
+			// pair-optimized only within the set 200 < p < 250
+			meas_prac(48319, 0.552793637425581075);     // 211 x 229 savings 3
+			if (stg1 > 250)
+			{
+				meas_prac(57311, 0.552740754023503311); // 223 x 257 savings 3
+				meas_prac(241, 0.625306711365725132);   // [241,347], savings = 2
+			}
+			else
+			{
+				meas_prac(53743, 0.718522647487825128); // 223 x 241 savings 2
+			}
+			meas_prac(54253, 0.580178728295464130);     // 227 x 239 savings 2
+			meas_prac(233, 0.618033988749894903);
+			// one more factor of 3 will fit
+			meas_prac(3, 0.618033988749894903);
+		}
+
+		if (stg1 > 175)
+		{
+			// anything greater than 175 gets B1=200.
+			// here we have pair-optimized some primes
+			meas_prac(3, 0.618033988749894903);
+			meas_prac(3, 0.618033988749894903);
+			meas_prac(3, 0.618033988749894903);
+			meas_prac(3, 0.618033988749894903);
+			meas_prac(5, 0.618033988749894903);
+			meas_prac(5, 0.618033988749894903);
+			meas_prac(5, 0.618033988749894903);
+			meas_prac(7, 0.618033988749894903);
+			meas_prac(7, 0.618033988749894903);
+			meas_prac(11, 0.580178728295464130);
+			meas_prac(11, 0.580178728295464130);
+			meas_prac(13, 0.618033988749894903);
+			meas_prac(13, 0.618033988749894903);
+			meas_prac(17, 0.618033988749894903);
+			meas_prac(19, 0.618033988749894903);
+			meas_prac(3427, 0.618033988749894903);
+			meas_prac(29, 0.548409048446403258);
+			meas_prac(31, 0.618033988749894903);
+			meas_prac(4181, 0.618033988749894903);
+			meas_prac(2173, 0.618033988749894903);
+			meas_prac(43, 0.618033988749894903);
+			meas_prac(47, 0.548409048446403258);
+			meas_prac(8909, 0.580178728295464130);
+			meas_prac(12017, 0.643969713705029423);
+			meas_prac(67, 0.580178728295464130);
+			meas_prac(71, 0.591965645556728037);
+			meas_prac(73, 0.618033988749894903);
+			meas_prac(79, 0.618033988749894903);
+			meas_prac(8051, 0.632839806088706269);
+			meas_prac(89, 0.618033988749894903);
+			meas_prac(101, 0.556250337855490828);
+			meas_prac(103, 0.632839806088706269);
+			meas_prac(107, 0.580178728295464130);
+			meas_prac(109, 0.548409048446403258);
+			meas_prac(17653, 0.586779411332316370);
+			meas_prac(131, 0.618033988749894903);
+			meas_prac(22879, 0.591384619013580526);
+			meas_prac(157, 0.640157392785047019);
+			meas_prac(163, 0.551390822543526449);
+			meas_prac(173, 0.612429949509495031); //[173,347], savings = 2
+			meas_prac(179, 0.618033988749894903); //[179,379], savings = 1, [179,461], savings = 3
+			meas_prac(181, 0.551390822543526449);
+			meas_prac(191, 0.618033988749894903);
+			meas_prac(193, 0.618033988749894903);
+			meas_prac(199, 0.551390822543526449);
+		}
 		return 0;
 	}
 	else

@@ -1148,6 +1148,25 @@ __device__ void udup96(uint32* s, uint32 rho, uint32* n,
     montmul96(tt2, tt3, P->Z, n, rho);          // Z = w*(V-U)
 }
 
+__device__ void udup96as(uint32* s, uint32 rho, uint32* n, uecm96_pt* P) {
+
+    uint32 tt1[3], tt2[3], tt3[3];
+    uint32 insum[3], indiff[3];
+
+    modsub96(P->X, P->Z, indiff, n);
+    modadd96(P->X, P->Z, insum, n);
+
+    montsqr96(indiff, tt1, n, rho);     // U=(x1 - z1)^2
+    montsqr96(insum, tt2, n, rho);       // V=(x1 + z1)^2
+    montmul96(tt1, tt2, P->X, n, rho);          // x=U*V
+
+    modsub96(tt2, tt1, tt3, n);                 // w = V-U
+    montmul96(tt3, s, tt2, n, rho);             // w = (A+2)/4 * w
+    modadd96(tt2, tt1, tt2, n);                 // w = w + U
+
+    montmul96(tt2, tt3, P->Z, n, rho);          // Z = w*(V-U)
+}
+
 __device__ void swap96(uint32* a, uint32* b)
 {
     uint32 t;
@@ -1208,10 +1227,8 @@ __device__ void fourswap96(uint32* a, uint32* b, uint32* c, uint32* d)
 __device__ void uprac96(uint32 rho, uint32* n, uecm96_pt* P,
     uint64_t c, double v, uint32* s)
 {
+    // require c odd
     uint64_t d, e, r;
-
-    // we require c != 0
-    int shift = __ffsll(c) - 1;
 
     d = c;
     r = (uint64_t)((double)d * v + 0.5);
@@ -1259,16 +1276,16 @@ __device__ void uprac96(uint32 rho, uint32* n, uecm96_pt* P,
             swap96(pt1.X, pt5.X);
             swap96(pt1.Z, pt5.Z);
         }
-        else if (d - e <= e / 4 && (d - e) % 6 == 0)
-        {
-            d = (d - e) / 2;
-
-            modsub96(pt1.X, pt1.Z, d1, n);
-            modadd96(pt1.X, pt1.Z, s1, n);
-
-            uadd96(rho, n, pt1, pt2, pt3, &pt2);        // B = A + B (C)
-            udup96(s, rho, n, s1, d1, &pt1);        // A = 2A
-        }
+        //else if (d - e <= e / 4 && (d - e) % 6 == 0)
+        //{
+        //    d = (d - e) / 2;
+        //
+        //    modsub96(pt1.X, pt1.Z, d1, n);
+        //    modadd96(pt1.X, pt1.Z, s1, n);
+        //
+        //    uadd96(rho, n, pt1, pt2, pt3, &pt2);        // B = A + B (C)
+        //    udup96(s, rho, n, s1, d1, &pt1);        // A = 2A
+        //}
         else if ((d + 3) / 4 <= e)
         {
             d -= e;
@@ -1278,7 +1295,7 @@ __device__ void uprac96(uint32 rho, uint32* n, uecm96_pt* P,
             threeswap96(pt2.X, pt4.X, pt3.X);
             threeswap96(pt2.Z, pt4.Z, pt3.Z);
         }
-        else if ((d + e) % 2 == 0)
+        else // if ((d + e) % 2 == 0)
         {
             d = (d - e) / 2;
 
@@ -1288,80 +1305,72 @@ __device__ void uprac96(uint32 rho, uint32* n, uecm96_pt* P,
             uadd96(rho, n, pt2, pt1, pt3, &pt2);        // B = B + A (C)
             udup96(s, rho, n, s2, d2, &pt1);        // A = 2A
         }
-        else if (d % 2 == 0)
-        {
-            d /= 2;
-
-            modsub96(pt1.X, pt1.Z, d2, n);
-            modadd96(pt1.X, pt1.Z, s2, n);
-
-            uadd96(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
-            udup96(s, rho, n, s2, d2, &pt1);        // A = 2A
-        }
-        else if (d % 3 == 0)
-        {
-            d = d / 3 - e;
-
-            modsub96(pt1.X, pt1.Z, d1, n);
-            modadd96(pt1.X, pt1.Z, s1, n);
-
-            udup96(s, rho, n, s1, d1, &pt4);        // T = 2A
-            uadd96(rho, n, pt1, pt2, pt3, &pt5);        // T2 = A + B (C)
-            uadd96(rho, n, pt4, pt1, pt1, &pt1);        // A = T + A (A)
-            uadd96(rho, n, pt4, pt5, pt3, &pt4);        // T = T + T2 (C)
-
-            threeswap96(pt3.X, pt2.X, pt4.X);
-            threeswap96(pt3.Z, pt2.Z, pt4.Z);
-        }
-        else if ((d + e) % 3 == 0)
-        {
-            d = (d - 2 * e) / 3;
-
-            uadd96(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
-
-            modsub96(pt1.X, pt1.Z, d2, n);
-            modadd96(pt1.X, pt1.Z, s2, n);
-            uadd96(rho, n, pt4, pt1, pt2, &pt2);        // B = T + A (B)
-            udup96(s, rho, n, s2, d2, &pt4);        // T = 2A
-            uadd96(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
-        }
-        else if ((d - e) % 3 == 0)
-        {
-            d = (d - e) / 3;
-
-            uadd96(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
-
-            modsub96(pt1.X, pt1.Z, d2, n);
-            modadd96(pt1.X, pt1.Z, s2, n);
-            uadd96(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
-
-            swap96(pt2.X, pt4.X);
-            swap96(pt2.Z, pt4.Z);
-
-            udup96(s, rho, n, s2, d2, &pt4);        // T = 2A
-            uadd96(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
-        }
-        else
-        {
-            e /= 2;
-
-            modsub96(pt2.X, pt2.Z, d2, n);
-            modadd96(pt2.X, pt2.Z, s2, n);
-
-            uadd96(rho, n, pt3, pt2, pt1, &pt3);        // C = C + B (A)
-            udup96(s, rho, n, s2, d2, &pt2);        // B = 2B
-        }
+        //else if (d % 2 == 0)
+        //{
+        //    d /= 2;
+        //
+        //    modsub96(pt1.X, pt1.Z, d2, n);
+        //    modadd96(pt1.X, pt1.Z, s2, n);
+        //
+        //    uadd96(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
+        //    udup96(s, rho, n, s2, d2, &pt1);        // A = 2A
+        //}
+        //else if (d % 3 == 0)
+        //{
+        //    d = d / 3 - e;
+        //
+        //    modsub96(pt1.X, pt1.Z, d1, n);
+        //    modadd96(pt1.X, pt1.Z, s1, n);
+        //
+        //    udup96(s, rho, n, s1, d1, &pt4);        // T = 2A
+        //    uadd96(rho, n, pt1, pt2, pt3, &pt5);        // T2 = A + B (C)
+        //    uadd96(rho, n, pt4, pt1, pt1, &pt1);        // A = T + A (A)
+        //    uadd96(rho, n, pt4, pt5, pt3, &pt4);        // T = T + T2 (C)
+        //
+        //    threeswap96(pt3.X, pt2.X, pt4.X);
+        //    threeswap96(pt3.Z, pt2.Z, pt4.Z);
+        //}
+        //else if ((d + e) % 3 == 0)
+        //{
+        //    d = (d - 2 * e) / 3;
+        //
+        //    uadd96(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
+        //
+        //    modsub96(pt1.X, pt1.Z, d2, n);
+        //    modadd96(pt1.X, pt1.Z, s2, n);
+        //    uadd96(rho, n, pt4, pt1, pt2, &pt2);        // B = T + A (B)
+        //    udup96(s, rho, n, s2, d2, &pt4);        // T = 2A
+        //    uadd96(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
+        //}
+        //else if ((d - e) % 3 == 0)
+        //{
+        //    d = (d - e) / 3;
+        //
+        //    uadd96(rho, n, pt1, pt2, pt3, &pt4);        // T = A + B (C)
+        //
+        //    modsub96(pt1.X, pt1.Z, d2, n);
+        //    modadd96(pt1.X, pt1.Z, s2, n);
+        //    uadd96(rho, n, pt3, pt1, pt2, &pt3);        // C = C + A (B)
+        //
+        //    swap96(pt2.X, pt4.X);
+        //    swap96(pt2.Z, pt4.Z);
+        //
+        //    udup96(s, rho, n, s2, d2, &pt4);        // T = 2A
+        //    uadd96(rho, n, pt1, pt4, pt1, &pt1);        // A = A + T (A) = 3A
+        //}
+        //else
+        //{
+        //    e /= 2;
+        //
+        //    modsub96(pt2.X, pt2.Z, d2, n);
+        //    modadd96(pt2.X, pt2.Z, s2, n);
+        //
+        //    uadd96(rho, n, pt3, pt2, pt1, &pt3);        // C = C + B (A)
+        //    udup96(s, rho, n, s2, d2, &pt2);        // B = 2B
+        //}
     }
 
     uadd96(rho, n, pt1, pt2, pt3, P);     // A = A + B (C)
-
-    int i;
-    for (i = 0; i < shift; i++)
-    {
-        modsub96(P->X, P->Z, d1, n);
-        modadd96(P->X, P->Z, s1, n);
-        udup96(s, rho, n, s1, d1, P);     // P = 2P
-    }
 
     return;
 }
@@ -1434,15 +1443,12 @@ __device__ void uecm96_stage1(uint32_t rho, uint32* n, uecm96_pt* P,
     uint32_t stg1, uint32* s)
 {
     uint32_t q;
-    uint32 diff1[3], sum1[3];
 
     // handle the only even case
     q = 2;
-    while (q < (stg1 * 4))  // jeff: multiplying by 4 improves perf ~1%
+    while (q < (stg1))  // jeff: multiplying by 4 improves perf ~1%
     {
-        modsub96(P->X, P->Z, diff1, n);
-        modadd96(P->X, P->Z, sum1, n);
-        udup96(s, rho, n, sum1, diff1, P);
+        udup96as(s, rho, n, P);
         q *= 2;
     }
 
@@ -1545,10 +1551,716 @@ __device__ void uecm96_stage1(uint32_t rho, uint32* n, uecm96_pt* P,
         uprac96(rho, n, P, 3, 0.618033988749894903, s);         
     }
 
+//#define FULLY_UNROLL
     if (stg1 > 175)
     {
         // anything greater than 175 gets B1=200.
         // here we have pair-optimized some primes
+#ifdef FULLY_UNROLL
+        // this removes hundreds of swaps, and completely removes
+        // the prac overhead (all of the if/else stuff).
+        // But the crazy thing
+        // about GPUs is that it actually runs slightly slower
+        // on a H200.  The swaps and switches are apparently invisible given
+        // the latency hiding intrinsic to the threadblock architecture,
+        // or compiler optimizations, or both. And this is obviously
+        // lots more lines of code, which also take effort and cache 
+        // to store, load, and decode.
+        uecm96_pt p1, p2, p3, p4;
+
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p1, p2, p3, P); // 3 = 2 + 1 (1)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p1, p2, p3, P); // 3 = 2 + 1 (1)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p1, p2, p3, P); // 3 = 2 + 1 (1)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p1, p2, p3, P); // 3 = 2 + 1 (1)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, P); // 5 = 2 + 3 (1)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, P); // 5 = 2 + 3 (1)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, P); // 5 = 2 + 3 (1)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p4, p1, p2, &p3); // 5 = 3 + 2 (1)
+        uadd96(rho, n, p1, p3, p4, P); // 7 = 2 + 5 (3)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p4, p1, p2, &p3); // 5 = 3 + 2 (1)
+        uadd96(rho, n, p1, p3, p4, P); // 7 = 2 + 5 (3)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, P); // 11 = 4 + 7 (3)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, P); // 11 = 4 + 7 (3)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, P); // 13 = 5 + 8 (3)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, P); // 13 = 5 + 8 (3)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p1); // 5 = 2 + 3 (1)
+        udup96as(s, rho, n, &p4); // 6 = 2 * 3
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 5 + 6 (1)
+        uadd96(rho, n, p4, p3, p1, P); // 17 = 6 + 11 (5)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p3, p4, p1, &p2); // 8 = 5 + 3 (2)
+        uadd96(rho, n, p4, p2, p3, &p1); // 11 = 3 + 8 (5)
+        uadd96(rho, n, p2, p1, p4, P); // 19 = 8 + 11 (3)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p2, p1, p3, &p4); // 21 = 8 + 13 (5)
+        uadd96(rho, n, p1, p4, p2, &p3); // 34 = 13 + 21 (8)
+        uadd96(rho, n, p4, p3, p1, &p2); // 55 = 21 + 34 (13)
+        uadd96(rho, n, p3, p2, p4, &p1); // 89 = 34 + 55 (21)
+        uadd96(rho, n, p2, p1, p3, &p4); // 144 = 55 + 89 (34)
+        uadd96(rho, n, p1, p4, p2, &p3); // 233 = 89 + 144 (55)
+        uadd96(rho, n, p4, p3, p1, &p2); // 377 = 144 + 233 (89)
+        uadd96(rho, n, p3, p2, p4, &p1); // 610 = 233 + 377 (144)
+        uadd96(rho, n, p2, p1, p3, &p2); // 987 = 377 + 610 (233)
+        udup96as(s, rho, n, &p1); // 1220 = 2 * 610
+        uadd96(rho, n, p2, p1, p3, &p4); // 2207 = 987 + 1220 (233)
+        uadd96(rho, n, p1, p4, p2, P); // 3427 = 1220 + 2207 (987)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 4 + 7 (3)
+        uadd96(rho, n, p4, p3, p1, &p2); // 18 = 7 + 11 (4)
+        uadd96(rho, n, p3, p2, p4, P); // 29 = 11 + 18 (7)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p2, p3, p4, &p1); // 13 = 8 + 5 (3)
+        uadd96(rho, n, p3, p1, p2, &p4); // 18 = 5 + 13 (8)
+        uadd96(rho, n, p1, p4, p3, P); // 31 = 13 + 18 (5)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p2, p1, p3, &p4); // 21 = 8 + 13 (5)
+        uadd96(rho, n, p1, p4, p2, &p3); // 34 = 13 + 21 (8)
+        uadd96(rho, n, p4, p3, p1, &p2); // 55 = 21 + 34 (13)
+        uadd96(rho, n, p3, p2, p4, &p1); // 89 = 34 + 55 (21)
+        uadd96(rho, n, p2, p1, p3, &p4); // 144 = 55 + 89 (34)
+        uadd96(rho, n, p1, p4, p2, &p3); // 233 = 89 + 144 (55)
+        uadd96(rho, n, p4, p3, p1, &p2); // 377 = 144 + 233 (89)
+        uadd96(rho, n, p3, p2, p4, &p1); // 610 = 233 + 377 (144)
+        uadd96(rho, n, p2, p1, p3, &p4); // 987 = 377 + 610 (233)
+        uadd96(rho, n, p1, p4, p2, &p3); // 1597 = 610 + 987 (377)
+        uadd96(rho, n, p4, p3, p1, &p2); // 2584 = 987 + 1597 (610)
+        uadd96(rho, n, p3, p2, p4, P); // 4181 = 1597 + 2584 (987)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p2, p1, p3, &p4); // 21 = 8 + 13 (5)
+        uadd96(rho, n, p1, p4, p2, &p3); // 34 = 13 + 21 (8)
+        uadd96(rho, n, p4, p3, p1, &p2); // 55 = 21 + 34 (13)
+        uadd96(rho, n, p3, p2, p4, &p1); // 89 = 34 + 55 (21)
+        uadd96(rho, n, p2, p1, p3, &p4); // 144 = 55 + 89 (34)
+        uadd96(rho, n, p1, p4, p2, &p3); // 233 = 89 + 144 (55)
+        uadd96(rho, n, p3, p4, p1, &p2); // 377 = 233 + 144 (89)
+        uadd96(rho, n, p4, p2, p3, &p1); // 521 = 144 + 377 (233)
+        uadd96(rho, n, p1, p2, p4, &p3); // 898 = 521 + 377 (144)
+        uadd96(rho, n, p2, p3, p1, &p4); // 1275 = 377 + 898 (521)
+        uadd96(rho, n, p3, p4, p2, P); // 2173 = 898 + 1275 (377)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p3, p4, p1, &p2); // 8 = 5 + 3 (2)
+        uadd96(rho, n, p4, p2, p3, &p4); // 11 = 3 + 8 (5)
+        udup96as(s, rho, n, &p2); // 16 = 2 * 8
+        uadd96(rho, n, p4, p2, p3, &p1); // 27 = 11 + 16 (5)
+        uadd96(rho, n, p2, p1, p4, P); // 43 = 16 + 27 (11)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 4 + 7 (3)
+        uadd96(rho, n, p4, p3, p1, &p2); // 18 = 7 + 11 (4)
+        uadd96(rho, n, p3, p2, p4, &p1); // 29 = 11 + 18 (7)
+        uadd96(rho, n, p2, p1, p3, P); // 47 = 18 + 29 (11)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p4, p1, p2, &p3); // 5 = 3 + 2 (1)
+        uadd96(rho, n, p1, p3, p4, &p2); // 7 = 2 + 5 (3)
+        uadd96(rho, n, p3, p2, p1, &p4); // 12 = 5 + 7 (2)
+        uadd96(rho, n, p2, p4, p3, &p1); // 19 = 7 + 12 (5)
+        uadd96(rho, n, p4, p1, p2, &p3); // 31 = 12 + 19 (7)
+        uadd96(rho, n, p1, p3, p4, &p2); // 50 = 19 + 31 (12)
+        uadd96(rho, n, p3, p2, p1, &p4); // 81 = 31 + 50 (19)
+        uadd96(rho, n, p2, p4, p3, &p1); // 131 = 50 + 81 (31)
+        uadd96(rho, n, p1, p4, p2, &p3); // 212 = 131 + 81 (50)
+        uadd96(rho, n, p4, p3, p1, &p2); // 293 = 81 + 212 (131)
+        uadd96(rho, n, p3, p2, p4, &p1); // 505 = 212 + 293 (81)
+        uadd96(rho, n, p2, p1, p3, &p4); // 798 = 293 + 505 (212)
+        uadd96(rho, n, p1, p4, p2, &p3); // 1303 = 505 + 798 (293)
+        uadd96(rho, n, p4, p3, p1, &p2); // 2101 = 798 + 1303 (505)
+        uadd96(rho, n, p3, p2, p4, &p1); // 3404 = 1303 + 2101 (798)
+        uadd96(rho, n, p2, p1, p3, &p4); // 5505 = 2101 + 3404 (1303)
+        uadd96(rho, n, p1, p4, p2, P); // 8909 = 3404 + 5505 (2101)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p1); // 5 = 2 + 3 (1)
+        udup96as(s, rho, n, &p4); // 6 = 2 * 3
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 5 + 6 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 17 = 6 + 11 (5)
+        uadd96(rho, n, p3, p2, p4, &p1); // 28 = 11 + 17 (6)
+        uadd96(rho, n, p2, p1, p3, &p4); // 45 = 17 + 28 (11)
+        uadd96(rho, n, p1, p4, p2, &p3); // 73 = 28 + 45 (17)
+        uadd96(rho, n, p4, p3, p1, &p2); // 118 = 45 + 73 (28)
+        uadd96(rho, n, p3, p2, p4, &p1); // 191 = 73 + 118 (45)
+        uadd96(rho, n, p2, p1, p3, &p4); // 309 = 118 + 191 (73)
+        uadd96(rho, n, p1, p4, p2, &p3); // 500 = 191 + 309 (118)
+        uadd96(rho, n, p4, p3, p1, &p2); // 809 = 309 + 500 (191)
+        uadd96(rho, n, p3, p2, p4, &p3); // 1309 = 500 + 809 (309)
+        udup96as(s, rho, n, &p2); // 1618 = 2 * 809
+        uadd96(rho, n, p3, p2, p4, &p1); // 2927 = 1309 + 1618 (309)
+        uadd96(rho, n, p2, p1, p3, &p4); // 4545 = 1618 + 2927 (1309)
+        uadd96(rho, n, p1, p4, p2, &p3); // 7472 = 2927 + 4545 (1618)
+        uadd96(rho, n, p4, p3, p1, P); // 12017 = 4545 + 7472 (2927)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p4, p1, p2, &p3); // 5 = 3 + 2 (1)
+        uadd96(rho, n, p1, p3, p4, &p2); // 7 = 2 + 5 (3)
+        uadd96(rho, n, p3, p2, p1, &p4); // 12 = 5 + 7 (2)
+        uadd96(rho, n, p2, p4, p3, &p2); // 19 = 7 + 12 (5)
+        udup96as(s, rho, n, &p4); // 24 = 2 * 12
+        uadd96(rho, n, p2, p4, p3, &p1); // 43 = 19 + 24 (5)
+        uadd96(rho, n, p4, p1, p2, P); // 67 = 24 + 43 (19)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p4, p1, p2, &p3); // 5 = 3 + 2 (1)
+        uadd96(rho, n, p1, p3, p4, &p1); // 7 = 2 + 5 (3)
+        udup96as(s, rho, n, &p3); // 10 = 2 * 5
+        uadd96(rho, n, p1, p3, p4, &p2); // 17 = 7 + 10 (3)
+        uadd96(rho, n, p3, p2, p1, &p4); // 27 = 10 + 17 (7)
+        uadd96(rho, n, p2, p4, p3, &p1); // 44 = 17 + 27 (10)
+        uadd96(rho, n, p4, p1, p2, P); // 71 = 27 + 44 (17)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p2, p1, p3, &p2); // 21 = 8 + 13 (5)
+        udup96as(s, rho, n, &p1); // 26 = 2 * 13
+        uadd96(rho, n, p2, p1, p3, &p4); // 47 = 21 + 26 (5)
+        uadd96(rho, n, p1, p4, p2, P); // 73 = 26 + 47 (21)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p1, p2, p3, &p4); // 21 = 13 + 8 (5)
+        uadd96(rho, n, p2, p4, p1, &p3); // 29 = 8 + 21 (13)
+        uadd96(rho, n, p4, p3, p2, &p1); // 50 = 21 + 29 (8)
+        uadd96(rho, n, p3, p1, p4, P); // 79 = 29 + 50 (21)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p3, p4, p1, &p2); // 8 = 5 + 3 (2)
+        uadd96(rho, n, p4, p2, p3, &p1); // 11 = 3 + 8 (5)
+        uadd96(rho, n, p2, p1, p4, &p3); // 19 = 8 + 11 (3)
+        uadd96(rho, n, p1, p3, p2, &p4); // 30 = 11 + 19 (8)
+        uadd96(rho, n, p3, p4, p1, &p2); // 49 = 19 + 30 (11)
+        uadd96(rho, n, p4, p2, p3, &p1); // 79 = 30 + 49 (19)
+        uadd96(rho, n, p2, p1, p4, &p3); // 128 = 49 + 79 (30)
+        uadd96(rho, n, p1, p3, p2, &p4); // 207 = 79 + 128 (49)
+        uadd96(rho, n, p3, p4, p1, &p2); // 335 = 128 + 207 (79)
+        uadd96(rho, n, p4, p2, p3, &p1); // 542 = 207 + 335 (128)
+        uadd96(rho, n, p2, p1, p4, &p2); // 877 = 335 + 542 (207)
+        udup96as(s, rho, n, &p1); // 1084 = 2 * 542
+        uadd96(rho, n, p2, p1, p4, &p3); // 1961 = 877 + 1084 (207)
+        uadd96(rho, n, p1, p3, p2, &p4); // 3045 = 1084 + 1961 (877)
+        uadd96(rho, n, p3, p4, p1, &p2); // 5006 = 1961 + 3045 (1084)
+        uadd96(rho, n, p4, p2, p3, P); // 8051 = 3045 + 5006 (1961)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p2, p1, p3, &p4); // 21 = 8 + 13 (5)
+        uadd96(rho, n, p1, p4, p2, &p3); // 34 = 13 + 21 (8)
+        uadd96(rho, n, p4, p3, p1, &p2); // 55 = 21 + 34 (13)
+        uadd96(rho, n, p3, p2, p4, P); // 89 = 34 + 55 (21)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 4 + 7 (3)
+        uadd96(rho, n, p4, p3, p1, &p2); // 18 = 7 + 11 (4)
+        uadd96(rho, n, p3, p2, p4, &p3); // 29 = 11 + 18 (7)
+        udup96as(s, rho, n, &p2); // 36 = 2 * 18
+        uadd96(rho, n, p3, p2, p4, &p1); // 65 = 29 + 36 (7)
+        uadd96(rho, n, p2, p1, p3, P); // 101 = 36 + 65 (29)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p3, p4, p1, &p2); // 8 = 5 + 3 (2)
+        uadd96(rho, n, p4, p2, p3, &p1); // 11 = 3 + 8 (5)
+        uadd96(rho, n, p1, p2, p4, &p3); // 19 = 11 + 8 (3)
+        uadd96(rho, n, p2, p3, p1, &p2); // 27 = 8 + 19 (11)
+        udup96as(s, rho, n, &p3); // 38 = 2 * 19
+        uadd96(rho, n, p2, p3, p1, &p4); // 65 = 27 + 38 (11)
+        uadd96(rho, n, p3, p4, p2, P); // 103 = 38 + 65 (27)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p4, p1, p2, &p3); // 5 = 3 + 2 (1)
+        uadd96(rho, n, p1, p3, p4, &p2); // 7 = 2 + 5 (3)
+        uadd96(rho, n, p3, p2, p1, &p4); // 12 = 5 + 7 (2)
+        uadd96(rho, n, p2, p4, p3, &p1); // 19 = 7 + 12 (5)
+        uadd96(rho, n, p4, p1, p2, &p4); // 31 = 12 + 19 (7)
+        udup96as(s, rho, n, &p1); // 38 = 2 * 19
+        uadd96(rho, n, p4, p1, p2, &p3); // 69 = 31 + 38 (7)
+        uadd96(rho, n, p1, p3, p4, P); // 107 = 38 + 69 (31)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 4 + 7 (3)
+        uadd96(rho, n, p4, p3, p1, &p2); // 18 = 7 + 11 (4)
+        uadd96(rho, n, p2, p3, p4, &p1); // 29 = 18 + 11 (7)
+        uadd96(rho, n, p3, p1, p2, &p4); // 40 = 11 + 29 (18)
+        uadd96(rho, n, p1, p4, p3, &p2); // 69 = 29 + 40 (11)
+        uadd96(rho, n, p4, p2, p1, P); // 109 = 40 + 69 (29)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p4, p1, p2, &p3); // 5 = 3 + 2 (1)
+        uadd96(rho, n, p1, p3, p4, &p2); // 7 = 2 + 5 (3)
+        uadd96(rho, n, p2, p3, p1, &p4); // 12 = 7 + 5 (2)
+        uadd96(rho, n, p3, p4, p2, &p1); // 17 = 5 + 12 (7)
+        uadd96(rho, n, p4, p1, p3, &p2); // 29 = 12 + 17 (5)
+        uadd96(rho, n, p1, p2, p4, &p3); // 46 = 17 + 29 (12)
+        uadd96(rho, n, p2, p3, p1, &p4); // 75 = 29 + 46 (17)
+        uadd96(rho, n, p3, p4, p2, &p1); // 121 = 46 + 75 (29)
+        uadd96(rho, n, p4, p1, p3, &p2); // 196 = 75 + 121 (46)
+        uadd96(rho, n, p2, p1, p4, &p3); // 317 = 196 + 121 (75)
+        uadd96(rho, n, p1, p3, p2, &p4); // 438 = 121 + 317 (196)
+        uadd96(rho, n, p3, p4, p1, &p2); // 755 = 317 + 438 (121)
+        uadd96(rho, n, p4, p2, p3, &p1); // 1193 = 438 + 755 (317)
+        uadd96(rho, n, p2, p1, p4, &p3); // 1948 = 755 + 1193 (438)
+        uadd96(rho, n, p1, p3, p2, &p4); // 3141 = 1193 + 1948 (755)
+        uadd96(rho, n, p3, p4, p1, &p3); // 5089 = 1948 + 3141 (1193)
+        udup96as(s, rho, n, &p4); // 6282 = 2 * 3141
+        uadd96(rho, n, p3, p4, p1, &p2); // 11371 = 5089 + 6282 (1193)
+        uadd96(rho, n, p4, p2, p3, P); // 17653 = 6282 + 11371 (5089)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p2, p1, p3, &p4); // 21 = 8 + 13 (5)
+        uadd96(rho, n, p1, p4, p2, &p3); // 34 = 13 + 21 (8)
+        uadd96(rho, n, p3, p4, p1, &p2); // 55 = 34 + 21 (13)
+        uadd96(rho, n, p4, p2, p3, &p1); // 76 = 21 + 55 (34)
+        uadd96(rho, n, p2, p1, p4, P); // 131 = 55 + 76 (21)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p4, p1, p2, &p3); // 5 = 3 + 2 (1)
+        uadd96(rho, n, p1, p3, p4, &p1); // 7 = 2 + 5 (3)
+        udup96as(s, rho, n, &p3); // 10 = 2 * 5
+        uadd96(rho, n, p1, p3, p4, &p2); // 17 = 7 + 10 (3)
+        uadd96(rho, n, p3, p2, p1, &p4); // 27 = 10 + 17 (7)
+        uadd96(rho, n, p2, p4, p3, &p1); // 44 = 17 + 27 (10)
+        uadd96(rho, n, p4, p1, p2, &p3); // 71 = 27 + 44 (17)
+        uadd96(rho, n, p1, p3, p4, &p2); // 115 = 44 + 71 (27)
+        uadd96(rho, n, p3, p2, p1, &p4); // 186 = 71 + 115 (44)
+        uadd96(rho, n, p2, p4, p3, &p1); // 301 = 115 + 186 (71)
+        uadd96(rho, n, p4, p1, p2, &p3); // 487 = 186 + 301 (115)
+        uadd96(rho, n, p1, p3, p4, &p2); // 788 = 301 + 487 (186)
+        uadd96(rho, n, p3, p2, p1, &p4); // 1275 = 487 + 788 (301)
+        uadd96(rho, n, p2, p4, p3, &p1); // 2063 = 788 + 1275 (487)
+        uadd96(rho, n, p4, p1, p2, &p3); // 3338 = 1275 + 2063 (788)
+        uadd96(rho, n, p1, p3, p4, &p2); // 5401 = 2063 + 3338 (1275)
+        uadd96(rho, n, p3, p2, p1, &p4); // 8739 = 3338 + 5401 (2063)
+        uadd96(rho, n, p2, p4, p3, &p1); // 14140 = 5401 + 8739 (3338)
+        uadd96(rho, n, p4, p1, p2, P); // 22879 = 8739 + 14140 (5401)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p1); // 5 = 2 + 3 (1)
+        udup96as(s, rho, n, &p4); // 6 = 2 * 3
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 5 + 6 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 17 = 6 + 11 (5)
+        uadd96(rho, n, p3, p2, p4, &p1); // 28 = 11 + 17 (6)
+        uadd96(rho, n, p2, p1, p3, &p2); // 45 = 17 + 28 (11)
+        udup96as(s, rho, n, &p1); // 56 = 2 * 28
+        uadd96(rho, n, p2, p1, p3, &p4); // 101 = 45 + 56 (11)
+        uadd96(rho, n, p1, p4, p2, P); // 157 = 56 + 101 (45)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 4 + 7 (3)
+        uadd96(rho, n, p4, p3, p1, &p2); // 18 = 7 + 11 (4)
+        uadd96(rho, n, p3, p2, p4, &p1); // 29 = 11 + 18 (7)
+        uadd96(rho, n, p2, p1, p3, &p2); // 47 = 18 + 29 (11)
+        udup96as(s, rho, n, &p1); // 58 = 2 * 29
+        uadd96(rho, n, p2, p1, p3, &p4); // 105 = 47 + 58 (11)
+        uadd96(rho, n, p1, p4, p2, P); // 163 = 58 + 105 (47)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p2, p3, p4, &p1); // 13 = 8 + 5 (3)
+        uadd96(rho, n, p3, p1, p2, &p4); // 18 = 5 + 13 (8)
+        uadd96(rho, n, p1, p4, p3, &p2); // 31 = 13 + 18 (5)
+        uadd96(rho, n, p4, p2, p1, &p4); // 49 = 18 + 31 (13)
+        udup96as(s, rho, n, &p2); // 62 = 2 * 31
+        uadd96(rho, n, p4, p2, p1, &p3); // 111 = 49 + 62 (13)
+        uadd96(rho, n, p2, p3, p4, P); // 173 = 62 + 111 (49)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p1, p2, p3, &p4); // 21 = 13 + 8 (5)
+        uadd96(rho, n, p2, p4, p1, &p3); // 29 = 8 + 21 (13)
+        uadd96(rho, n, p4, p3, p2, &p1); // 50 = 21 + 29 (8)
+        uadd96(rho, n, p3, p1, p4, &p2); // 79 = 29 + 50 (21)
+        uadd96(rho, n, p2, p1, p3, &p4); // 129 = 79 + 50 (29)
+        uadd96(rho, n, p1, p4, p2, P); // 179 = 50 + 129 (79)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 4 + 7 (3)
+        uadd96(rho, n, p4, p3, p1, &p2); // 18 = 7 + 11 (4)
+        uadd96(rho, n, p3, p2, p4, &p1); // 29 = 11 + 18 (7)
+        uadd96(rho, n, p2, p1, p3, &p4); // 47 = 18 + 29 (11)
+        uadd96(rho, n, p4, p1, p2, &p3); // 76 = 47 + 29 (18)
+        uadd96(rho, n, p1, p3, p4, &p2); // 105 = 29 + 76 (47)
+        uadd96(rho, n, p3, p2, p1, P); // 181 = 76 + 105 (29)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p2, p1, p3, &p4); // 21 = 8 + 13 (5)
+        uadd96(rho, n, p1, p4, p2, &p3); // 34 = 13 + 21 (8)
+        uadd96(rho, n, p4, p3, p1, &p4); // 55 = 21 + 34 (13)
+        udup96as(s, rho, n, &p3); // 68 = 2 * 34
+        uadd96(rho, n, p4, p3, p1, &p2); // 123 = 55 + 68 (13)
+        uadd96(rho, n, p3, p2, p4, P); // 191 = 68 + 123 (55)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p4); // 3 = 1 + 2 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 5 = 2 + 3 (1)
+        uadd96(rho, n, p4, p3, p1, &p2); // 8 = 3 + 5 (2)
+        uadd96(rho, n, p3, p2, p4, &p1); // 13 = 5 + 8 (3)
+        uadd96(rho, n, p2, p1, p3, &p2); // 21 = 8 + 13 (5)
+        udup96as(s, rho, n, &p1); // 26 = 2 * 13
+        uadd96(rho, n, p2, p1, p3, &p4); // 47 = 21 + 26 (5)
+        uadd96(rho, n, p1, p4, p2, &p3); // 73 = 26 + 47 (21)
+        uadd96(rho, n, p4, p3, p1, &p2); // 120 = 47 + 73 (26)
+        uadd96(rho, n, p3, p2, p4, P); // 193 = 73 + 120 (47)
+        p1.X[0] = p2.X[0] = p3.X[0] = P->X[0];
+        p1.Z[0] = p2.Z[0] = p3.Z[0] = P->Z[0];
+        p1.X[1] = p2.X[1] = p3.X[1] = P->X[1];
+        p1.Z[1] = p2.Z[1] = p3.Z[1] = P->Z[1];
+        p1.X[2] = p2.X[2] = p3.X[2] = P->X[2];
+        p1.Z[2] = p2.Z[2] = p3.Z[2] = P->Z[2];
+        udup96as(s, rho, n, &p1); // 2 = 2 * 1
+        uadd96(rho, n, p2, p1, p3, &p2); // 3 = 1 + 2 (1)
+        udup96as(s, rho, n, &p1); // 4 = 2 * 2
+        uadd96(rho, n, p2, p1, p3, &p4); // 7 = 3 + 4 (1)
+        uadd96(rho, n, p1, p4, p2, &p3); // 11 = 4 + 7 (3)
+        uadd96(rho, n, p4, p3, p1, &p2); // 18 = 7 + 11 (4)
+        uadd96(rho, n, p3, p2, p4, &p1); // 29 = 11 + 18 (7)
+        uadd96(rho, n, p2, p1, p3, &p4); // 47 = 18 + 29 (11)
+        uadd96(rho, n, p1, p4, p2, &p3); // 76 = 29 + 47 (18)
+        uadd96(rho, n, p4, p3, p1, &p2); // 123 = 47 + 76 (29)
+        uadd96(rho, n, p3, p2, p4, P); // 199 = 76 + 123 (47)
+
+#else
+
         uprac96(rho, n, P, 3, 0.618033988749894903, s);
         uprac96(rho, n, P, 3, 0.618033988749894903, s);
         uprac96(rho, n, P, 3, 0.618033988749894903, s);
@@ -1594,6 +2306,8 @@ __device__ void uecm96_stage1(uint32_t rho, uint32* n, uecm96_pt* P,
         uprac96(rho, n, P, 191, 0.618033988749894903, s);
         uprac96(rho, n, P, 193, 0.618033988749894903, s);
         uprac96(rho, n, P, 199, 0.551390822543526449, s);
+#endif
+
     }
 
 #if 0
