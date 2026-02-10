@@ -11,18 +11,18 @@ CUSTOM_GMP_LIB = ../gmp-install/6.2.0-gcc/lib
 SM = 90
 
 CFLAGS = -I$(CUDA_PATH)/include  -I$(CUSTOM_GMP_INC) \
-	-I. -Iytools -Iysieve -Iaprcl -O2 -DHAVE_CUDA -DTOOLKIT_VERSION=$(TOOLKIT_VERSION) \
+	-I. -Iytools -Iysieve -Iaprcl -O2 -DUSE_BMI2 -DUSE_AVX2 -DHAVE_CUDA -DTOOLKIT_VERSION=$(TOOLKIT_VERSION) \
 	-fno-common -mbmi2
 LDFLAGS = -L$(CUDA_PATH)/lib64 -L$(CUSTOM_GMP_LIB) -Lysieve -Lytools \
 	-Laprcl -lcudart -lgmp -lm -ldl -lcuda -pthread
 
 ifeq ($(ICELAKE),1)
-	CFLAGS += -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=icelake-client
+	CFLAGS += -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -DIFMA -march=icelake-client
 	SKYLAKEX = 1
 else
 
 ifeq ($(SKYLAKEX),1)
-	CFLAGS += -DUSE_BMI2 -DUSE_AVX2 -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -march=skylake-avx512 
+	CFLAGS += -DUSE_AVX512F -DUSE_AVX512BW -DSKYLAKEX -march=skylake-avx512 
 endif
 	
 endif

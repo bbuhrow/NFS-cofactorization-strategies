@@ -443,6 +443,7 @@ __device__ void uecm_stage1(uint32_t rho, uint64_t n, uecm_pt *P,
 
     if (stg1 > 205)
     {
+        // anything greater than 205 will use B1=250
         uprac(rho, n, P, 211, 0.612429949509495031, s);
         uprac(rho, n, P, 223, 0.625306711365725132, s);
         uprac(rho, n, P, 227, 0.580178728295464130, s);
@@ -455,6 +456,7 @@ __device__ void uecm_stage1(uint32_t rho, uint64_t n, uecm_pt *P,
 
     if (stg1 > 175)
     {
+        // anything greater than 175 will use B1=200
         uprac(rho, n, P, 3, 0.618033988749894903, s);
         uprac(rho, n, P, 3, 0.618033988749894903, s);
         uprac(rho, n, P, 3, 0.618033988749894903, s);
@@ -1090,30 +1092,35 @@ __device__ void uaddxz96(uint32_t rho, uint32_t* n, uint32_t* p1x, uint32_t* p1z
     uint32_t* pox, uint32_t* poz) {
 
     uint32 diff1[3], sum1[3], diff2[3], sum2[3];
-    uint32 tt1[3], tt2[3], tt3[3], tt4[3];
+    uint32 tt1[3], tt2[3];
 
-    modsub96(p1x, p1z, diff1, n);
-    modadd96(p1x, p1z, sum1, n);
-    modsub96(p2x, p2z, diff2, n);
-    modadd96(p2x, p2z, sum2, n);
+    //modsub96(p1x, p1z, diff1, n);
+    //modadd96(p1x, p1z, sum1, n);
+    //modsub96(p2x, p2z, diff2, n);
+    //modadd96(p2x, p2z, sum2, n);
+
+    modaddsub96(p1x, p1z, sum1, diff1, n);
+    modaddsub96(p2x, p2z, sum2, diff2, n);
 
     montmul96(diff1, sum2, tt1, n, rho);    // U
     montmul96(sum1, diff2, tt2, n, rho);    // V
 
-    modadd96(tt1, tt2, tt3, n);
-    modsub96(tt1, tt2, tt4, n);
-    montsqr96(tt3, tt1, n, rho);       // (U + V)^2
-    montsqr96(tt4, tt2, n, rho);       // (U - V)^2
+    //modadd96(tt1, tt2, tt3, n);
+    //modsub96(tt1, tt2, tt4, n);
+    modaddsub96(tt1, tt2, sum1, diff1, n);
 
-    montmul96(tt1, piz, tt3, n, rho);       // Z * (U + V)^2
-    montmul96(tt2, pix, tt4, n, rho);       // x * (U - V)^2
+    montsqr96(sum1, tt1, n, rho);       // (U + V)^2
+    montsqr96(diff1, tt2, n, rho);       // (U - V)^2
 
-    pox[0] = tt3[0];
-    pox[1] = tt3[1];
-    pox[2] = tt3[2];
-    poz[0] = tt4[0];
-    poz[1] = tt4[1];
-    poz[2] = tt4[2];
+    montmul96(tt1, piz, tt1, n, rho);       // Z * (U + V)^2
+    montmul96(tt2, pix, tt2, n, rho);       // x * (U - V)^2
+
+    pox[0] = tt1[0];
+    pox[1] = tt1[1];
+    pox[2] = tt1[2];
+    poz[0] = tt2[0];
+    poz[1] = tt2[1];
+    poz[2] = tt2[2];
 
     return;
 }
@@ -1662,6 +1669,117 @@ __device__ void uecm96_stage1(uint32_t rho, uint32* n, uecm96_pt* P,
     return;
 }
 
+__device__ void uecm96_stage1_ladder(uint32_t rho, uint32* n, uecm96_pt* P,
+    uint32_t stg1, uint32* s)
+{
+    // prac outperforms this, slightly, for B1=250, but for large B1 this
+    // could be the way to go with the full scalar multiplier passed in.
+    uecm96_pt R0;
+    uecm96_pt R1;
+    uint32 diff1[3], sum1[3];
+
+    // R0 = P
+    // R1 = [2]P
+    R0.Z[0] = R1.Z[0] = P->Z[0];
+    R0.Z[1] = R1.Z[1] = P->Z[1];
+    R0.Z[2] = R1.Z[2] = P->Z[2];
+    R0.X[0] = R1.X[0] = P->X[0];
+    R0.X[1] = R1.X[1] = P->X[1];
+    R0.X[2] = R1.X[2] = P->X[2];
+
+    modsub96(R1.X, R1.Z, diff1, n);
+    modadd96(R1.X, R1.Z, sum1, n);
+    udup96(s, rho, n, sum1, diff1, &R1);
+
+    if (stg1 > 200)
+    {
+        // exponent for B1=250:
+        // 32b08645 16c9a10a 28bd7eee 08c84eb3 
+        // 35fe7448 8e2381be cf794bb0 81128015 
+        // db8056fb 67bf4817 a181d61f
+        // we start at bit t-2, so here is the 
+        // first word of the exponent, a '1' bit:
+
+        // next words
+        uint32_t e[11];
+        e[10] = 0x12b08645;
+        e[9] = 0x16c9a10a;
+        e[8] = 0x28bd7eee;
+        e[7] = 0x08c84eb3;
+        e[6] = 0x35fe7448;
+        e[5] = 0x8e2381be;
+        e[4] = 0xcf794bb0;
+        e[3] = 0x81128015;
+        e[2] = 0xdb8056fb;
+        e[1] = 0x67bf4817;
+        e[0] = 0xa181d61f;
+
+        int i;
+        int j;
+
+        for (j = 28; j >= 0; j--)
+        {
+            if (((1 << j) & e[10]) == 0)
+            {
+                uaddxz96(rho, n, R1.X, R1.Z, R0.X, R0.Z, P->X, P->Z, R1.X, R1.Z);
+
+                modsub96(R0.X, R0.Z, diff1, n);
+                modadd96(R0.X, R0.Z, sum1, n);
+                udup96(s, rho, n, sum1, diff1, &R0);
+            }
+            else
+            {
+                uaddxz96(rho, n, R1.X, R1.Z, R0.X, R0.Z, P->X, P->Z, R0.X, R0.Z);
+
+                modsub96(R1.X, R1.Z, diff1, n);
+                modadd96(R1.X, R1.Z, sum1, n);
+                udup96(s, rho, n, sum1, diff1, &R1);
+            }
+        }
+
+        for (i = 9; i >= 0; i--)
+        {
+            int j;
+            for (j = 31; j >= 0; j--)
+            {
+                if (((1 << j) & e[i]) == 0)
+                {
+                    uaddxz96(rho, n, R1.X, R1.Z, R0.X, R0.Z, P->X, P->Z, R1.X, R1.Z);
+
+                    modsub96(R0.X, R0.Z, diff1, n);
+                    modadd96(R0.X, R0.Z, sum1, n);
+                    udup96(s, rho, n, sum1, diff1, &R0);
+                }
+                else
+                {
+                    uaddxz96(rho, n, R1.X, R1.Z, R0.X, R0.Z, P->X, P->Z, R0.X, R0.Z);
+
+                    modsub96(R1.X, R1.Z, diff1, n);
+                    modadd96(R1.X, R1.Z, sum1, n);
+                    udup96(s, rho, n, sum1, diff1, &R1);
+                }
+            }
+        }
+
+        // and the last 7 '0' bits
+        for (i = 0; i < 7; i++)
+        {
+            modsub96(R0.X, R0.Z, diff1, n);
+            modadd96(R0.X, R0.Z, sum1, n);
+            udup96(s, rho, n, sum1, diff1, &R0);
+        }
+
+        P->Z[0] = R0.Z[0];
+        P->Z[1] = R0.Z[1];
+        P->Z[2] = R0.Z[2];
+        P->X[0] = R0.X[0];
+        P->X[1] = R0.X[1];
+        P->X[2] = R0.X[2];
+    }
+    
+    return;
+}
+
 __device__ void gcd96(uint32_t* u, uint32_t* v, uint32_t* gcd)
 {
 #ifdef __GNUC__
@@ -1792,7 +1910,8 @@ __device__ void uecm96_stage2_D30(uecm96_pt* P, uint32_t rho, uint32_t *n,
         udup96(s, rho, n, sum1, diff1, &pt6);   // pt6 = [6]Q
 
         // [3]Q + [2]Q([1]Q) = [5]Q
-        uaddxz96(rho, n, PbX[3], PbZ[3],
+        uaddxz96(rho, n, 
+            PbX[3], PbZ[3],
             PbX[1], PbZ[1],
             PbX[0], PbZ[0],
             pt5.X, pt5.Z);    // <-- pt5 = [5]Q
@@ -2089,6 +2208,7 @@ __global__ void gbl_ecm96(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* o
             //    }
             //}
 
+            //uecm96_stage1_ladder(rho, n, &P, stg1, s);
             uecm96_stage1(rho, n, &P, stg1, s);
 
             uint32_t result[3];

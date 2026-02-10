@@ -1202,7 +1202,7 @@ int main(int argc, char **argv) {
 	processOpts(argc, argv, options);
 	batch_alg = options->batch_method;
 
-    strcpy(fname, "rels.raw");
+    strcpy(fname, options->file);
 
 	if (batch_alg == 1)
 	{
@@ -1246,12 +1246,80 @@ int main(int argc, char **argv) {
 		relation_batch_init(stdout, &rb, 1000000, 1ULL << (MAX(lpbr, lpba) - 1),
 			1ull << lpbr, 1ull << lpba, NULL, 0);
 	}
+	else if (batch_alg == 2)
+	{
+		// semiprime list generation, in the relations format 
+		// that relation_batch_t wants.
+		FILE* out;
+		int i;
+		mpz_t tmp1, tmp2, tmp3, tmp4;
+		uint32_t num = options->curves_3lp;
+		uint32_t bits = options->b1_3lp;
+
+		gmp_randstate_t gmp_randstate;
+		mpz_init(tmp1);
+		mpz_init(tmp2);
+		mpz_init(tmp3);
+		mpz_init(tmp4);
+		
+		gmp_randinit_default(gmp_randstate);
+		gmp_randseed_ui(gmp_randstate, options->stop_nofactor);
+
+		out = fopen(options->file, "w");
+		if (out == NULL)
+		{
+			printf("couldn't open %s for writing\n", options->file);
+			exit(1);
+		}
+
+		for (i = 0; i < num; i++)
+		{
+			mpz_urandomb(tmp3, gmp_randstate, bits / 2);
+			mpz_setbit(tmp3, bits / 2 - 1);
+			mpz_nextprime(tmp1, tmp3);
+			if (bits & 1)
+			{
+				mpz_urandomb(tmp3, gmp_randstate, bits / 2 + 1);
+				mpz_setbit(tmp3, bits / 2);
+			}
+			else
+			{
+				mpz_urandomb(tmp3, gmp_randstate, bits / 2);
+				mpz_setbit(tmp3, bits / 2 - 1);
+			}
+			mpz_nextprime(tmp2, tmp3);
+			mpz_mul(tmp3, tmp2, tmp1);
+			if (i == 0)
+			{
+				// put one 3LP number in there so it will
+				// autodetect which side is 2LP correctly.
+				mpz_urandomb(tmp4, gmp_randstate, 90);
+				gmp_fprintf(out, "-%Zd,-%Zd:%Zd,%Zd:4,5:6,7\n",
+					tmp3, tmp4, tmp1, tmp2);
+			}
+			else
+			{
+				gmp_fprintf(out, "-%Zd,1:%Zd,%Zd:4,5:6,7\n",
+					tmp3, tmp1, tmp2);
+			}
+			
+		}
+		fclose(out);
+
+		printf("generated %d semiprimes in file %s\n", num, options->file);
+		mpz_clear(tmp1);
+		mpz_clear(tmp2);
+		mpz_clear(tmp3);
+		mpz_clear(tmp4);
+
+		return 0;
+	}
 	else
 	{
 		lucas_opt2(options->b1_3lp, options->b2_3lp);
 	}
 
-    process_batch(&rb, lpbr, lpba, "rels.raw", "", 1, batch_alg, 
+    process_batch(&rb, lpbr, lpba, options->file, "", 1, batch_alg,
 		options->b1_3lp, options->b2_3lp, options->curves_3lp, options->stop_nofactor);
 
     return 0;
