@@ -27,16 +27,24 @@ select which method to use using command line option -m (--method) 0 for CUDA-EC
 If using CUDA-ECM these options are also available:
 
 specify 3LP B1 bound with -b1 option and one of the following integers
+
 -b1 <200, 250, 300, 400, 500>   
 
 specify 3LP B2 bound as a multiplier to B1 using -b2 option.  typical values are 25, 50, or 100
+
 -b2 <int>
 
 specify 3LP number of curves with -c.  typically values are 50, 100, or 200
+
 -c 100
 
 specify 3LP stopping condition with -s. 3LP ECM will stop after not finding any valid factors for -s curves.  typical values are 10, 15, 20
+
 -s 10
+
+example:
+
+./cuda-3lp -m 0 -b1 500 -b2 50 -c 100 -s 10
 
 
 
