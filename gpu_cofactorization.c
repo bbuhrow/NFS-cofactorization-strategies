@@ -133,7 +133,7 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 
 	float elapsed_ms;
 		
-	int threads_per_block = 128;
+	int threads_per_block = 256;
 	int num_blocks = t->array_sz / threads_per_block +
 		((t->array_sz % threads_per_block) > 0);
 
@@ -218,6 +218,16 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 
 		//printf("kernel %s, size <%d,%d>, ", gpu_kernel_names[GPU_ECM_VEC],
 		//	num_blocks, threads_per_block); fflush(stdout);
+		//	int maxblocks;
+		//int mingrid;
+		//cuOccupancyMaxActiveBlocksPerMultiprocessor(&maxblocks, (void*)launch->kernel_func,
+		//	threads_per_block, 0);
+		//printf("occupancy says %d blocks can be active per multiprocessor for kernel %s\n",
+		//	maxblocks, gpu_kernel_names[GPU_ECM_VEC]);
+		//cuOccupancyMaxPotentialBlockSize(&mingrid, &maxblocks, (void*)launch->kernel_func, 
+		//	NULL, 0, 0);
+		//printf("best occupancy with grid size %d and block size %d for kernel %s\n",
+		//	mingrid, maxblocks, gpu_kernel_names[GPU_ECM_VEC]);
 
 		// launch the kernel with the size we just set and 
 		// arguments configured by the gpu_launch_set command.
@@ -403,7 +413,9 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 
 	float elapsed_ms;
 
-	int threads_per_block = 128;
+	// When stg2 is set to use D30, use 384 threads/block.
+	// with D60 the max is 256, but 128 threads/block is slightly faster.
+	int threads_per_block = 384;
 	int num_blocks = t->array_sz / threads_per_block +
 		((t->array_sz % threads_per_block) > 0);
 
@@ -507,8 +519,18 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 		CUDA_TRY(cuFuncSetBlockShape(launch->kernel_func,
 			threads_per_block, 1, 1))
 
-		//printf("kernel %s, size <%d,%d>, ", gpu_kernel_names[GPU_ECM96_VEC],
-		//	num_blocks, threads_per_block);
+			//printf("kernel %s, size <%d,%d>, ", gpu_kernel_names[GPU_ECM96_VEC],
+			//	num_blocks, threads_per_block);
+		//	int maxblocks;
+		//int mingrid;
+		//	cuOccupancyMaxActiveBlocksPerMultiprocessor(&maxblocks, (void *)launch->kernel_func, 
+		//		threads_per_block, 0);
+		//	printf("occupancy says %d blocks can be active per multiprocessor for kernel %s\n",
+		//		maxblocks, gpu_kernel_names[GPU_ECM96_VEC]);
+		//	cuOccupancyMaxPotentialBlockSize(&mingrid, &maxblocks, (void*)launch->kernel_func,
+		//		NULL, 0, 0);
+		//	printf("best occupancy with grid size %d and block size %d for kernel %s\n",
+		//		mingrid, maxblocks, gpu_kernel_names[GPU_ECM96_VEC]);
 
 		// launch the kernel with the size we just set and 
 		// arguments configured by the gpu_launch_set command.
@@ -1177,22 +1199,6 @@ int do_gpu_cofactorization(device_thread_ctx_t* t, uint64_t *lcg,
 	for (i = 0; i < t->array_sz; i++) {
 		t->u32_array[i] = uecm_lcg_rand_32B(7, 0xffffffff, lcg);
 	}
-
-	// copy over the moduli to factor
-	// printf("setting up gpu to factor %d r-side 2LPs\n", t->numres_r);
-	// // 2LP
-	// for (i = 0; i < t->numres_r; i++) {
-	// 	t->modulus_in[i] = ((uint64_t)t->residues_r_in[i * 2 + 1] << 32) |
-	// 		(uint64_t)t->residues_r_in[i * 2 + 0];
-	// }
-	// 
-	// printf("setting up gpu to factor %d a-side 3LPs\n", t->numres_a);
-	// // 3LP
-	// for (i = 0; i < t->numres_a; i++) {
-	// 	t->modulus96_in[3 * i + 0] = t->residues_a_in[i * 3 + 0];
-	// 	t->modulus96_in[3 * i + 1] = t->residues_a_in[i * 3 + 1];
-	// 	t->modulus96_in[3 * i + 2] = t->residues_a_in[i * 3 + 2];
-	// }
 
 	gpu_cofactorization(t);
 

@@ -742,6 +742,7 @@ montmul64(uint64 a, uint64 b,
 		return r;
 }
 
+//#define NO_SUB
 __device__ void montmul96(uint32* a, uint32* b, uint32* c, uint32* n, uint32 w)
 {
 	// cios approach
@@ -839,6 +840,12 @@ __device__ void montmul96(uint32* a, uint32* b, uint32* c, uint32* n, uint32 w)
 		t[4] = 0;
 	}
 
+#ifdef NO_SUB
+	c[0] = t[0];
+	c[1] = t[1];
+	c[2] = t[2];
+#else
+
 	uint32 cc[3] = { 0,0,0 };
 
 	cc[0] = t[0];
@@ -847,14 +854,14 @@ __device__ void montmul96(uint32* a, uint32* b, uint32* c, uint32* n, uint32 w)
 
 	// non-balanced code paths, usually bad but this is faster... ?
 	// AMM: only reduce if result > R
-	if (t[3]) // || (carry == 0))
+	if (t[3])
 	{
 		asm("sub.cc.u32 %0, %0, %3;        \n\t"
 			"subc.cc.u32 %1, %1, %4; \n\t"
 			"subc.u32 %2, %2, %5; \n\t"
 			: "+r"(t[0]), "+r"(t[1]), "+r"(t[2])
 			: "r"(n[0]), "r"(n[1]), "r"(n[2]));
-
+	
 		c[0] = t[0];
 		c[1] = t[1];
 		c[2] = t[2];
@@ -865,6 +872,7 @@ __device__ void montmul96(uint32* a, uint32* b, uint32* c, uint32* n, uint32 w)
 		c[1] = cc[1];
 		c[2] = cc[2];
 	}
+#endif
 
 	return;
 }
@@ -943,6 +951,12 @@ __device__ void montsqr96(uint32* a, uint32* c, uint32* n, uint32 w)
 
 	}
 
+#ifdef NO_SUB
+	c[0] = t[0];
+	c[1] = t[1];
+	c[2] = t[2];
+#else
+
 	uint32 cc[3] = { 0,0,0 };
 
 	cc[0] = t[0];
@@ -969,6 +983,7 @@ __device__ void montsqr96(uint32* a, uint32* c, uint32* n, uint32 w)
 		c[1] = cc[1];
 		c[2] = cc[2];
 	}
+#endif
 
 	return;
 }
