@@ -216,6 +216,7 @@
     <ClInclude Include="..\..\batch_factor.h" />
     <ClInclude Include="..\..\cmdOptions.h" />
     <ClInclude Include="..\..\cofactorize.h" />
+    <ClInclude Include="..\..\cpu_cofactorization.h" />
     <ClInclude Include="..\..\cuda_xface.h" />
     <ClInclude Include="..\..\gpu_cofactorization.h" />
     <ClInclude Include="..\..\microecm.h" />
@@ -233,6 +234,7 @@
     <ClCompile Include="..\..\batch_factor.c" />
     <ClCompile Include="..\..\cmdOptions.c" />
     <ClCompile Include="..\..\cofactorize_siqs.c" />
+    <ClCompile Include="..\..\cpu_cofactorization.c" />
     <ClCompile Include="..\..\cuda_xface.c" />
     <ClCompile Include="..\..\gpu_cofactorization.c" />
     <ClCompile Include="..\..\main.c" />

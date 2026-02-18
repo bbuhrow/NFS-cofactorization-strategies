@@ -3,17 +3,17 @@
 # Makefile
 # ============================================================================
 CC = gcc
-TOOLKIT_VERSION=13
-CUDA_PATH = /usr/local/cuda-13
+TOOLKIT_VERSION=12
+CUDA_PATH = /usr/local/cuda-12
 NVCC = $(CUDA_PATH)/bin/nvcc
 CUSTOM_GMP_INC = ../gmp-install/6.2.0-gcc/include 
 CUSTOM_GMP_LIB = ../gmp-install/6.2.0-gcc/lib 
-SM = 90
+SM = 80
 
 CFLAGS = -I$(CUDA_PATH)/include  -I$(CUSTOM_GMP_INC) \
 	-I. -Iytools -Iysieve -Iaprcl -O2 -DUSE_BMI2 -DUSE_AVX2 -DHAVE_CUDA -DTOOLKIT_VERSION=$(TOOLKIT_VERSION) \
-	-fno-common -mbmi2
-LDFLAGS = -L$(CUDA_PATH)/lib64 -L$(CUSTOM_GMP_LIB) -Lysieve -Lytools \
+	-fno-common -mbmi -mbmi2 -mavx2
+LDFLAGS = -L$(CUDA_PATH)/lib64 -L$(CUSTOM_GMP_LIB) -Lysieve -Lytools -Lmpqs3 \
 	-Laprcl -lcudart -lgmp -lm -ldl -lcuda -pthread
 
 ifeq ($(ICELAKE),1)
@@ -30,6 +30,7 @@ endif
 MAIN_SRC = \
 	main.c \
 	gpu_cofactorization.c \
+	cpu_cofactorization.c \
 	cuda_xface.c \
 	util.c \
 	monty.c \
@@ -60,7 +61,7 @@ BATCHGCD_SRC = \
 	microecm.c \
 	tinyecm.c \
 	cofactorize_siqs.c
-
+	
 HEADERS = \
 	cuda_xface.h \
 	util.h \
@@ -72,6 +73,7 @@ HEADERS = \
 	microecm.h \
 	tinyecm.h \
 	gpu_cofactorization.h \
+	cpu_cofactorization.h \
 	ytools/threadpool.h \
 	ytools/ytools.h \
 	ysieve/soe_impl.h \
@@ -79,7 +81,9 @@ HEADERS = \
 	monty.h \
 	common.h \
 	arith.h \
-	cmdOptions.h
+	cmdOptions.h \
+	mpqs3/mpqs.h \
+	mpqs3/mpqs3.h 
 
 YSIEVE_OBJS = $(YSIEVE_SRC:.c=.o)
 YTOOLS_OBJS = $(YTOOLS_SRC:.c=.o)
@@ -88,9 +92,9 @@ MAIN_OBJS = $(MAIN_SRC:.c=.o)
 
 all: cuda_3lp
 
-cuda_3lp: $(MAIN_OBJS) $(YSIEVE_OBJS) $(YTOOLS_OBJS) $(BATCHGCD_OBJS) cuda_ecm$(SM).ptx
+cuda_3lp: $(MAIN_OBJS) $(YSIEVE_OBJS) $(YTOOLS_OBJS) $(BATCHGCD_OBJS) $(MPQS3_OBJS) cuda_ecm$(SM).ptx
 	$(CC) $(CFLAGS) -o cuda_3lp $(MAIN_OBJS) $(YSIEVE_OBJS) $(YTOOLS_OBJS) \
-	$(BATCHGCD_OBJS) $(LDFLAGS)
+	$(BATCHGCD_OBJS) -llasieve $(LDFLAGS) 
 
 # build rules
 
@@ -100,5 +104,16 @@ cuda_ecm$(SM).ptx: cuda_ecm64.cu cuda_intrinsics.h
 %.o: %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+%.S: %.asm
+	m4 -g  -Dn_i_bits=0 ls-defs.asm $^ > $@
+
+%.o: %.S
+	$(CC) -c $^
+
+%.o: %.s
+	$(CC) -c $^
+	
+.SECONDARY:  *.s *.S
+	
 clean:
 	rm -f *.o ysieve/*.o ytools/*.o aprcl/*.o cuda_3lp
