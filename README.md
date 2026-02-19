@@ -43,9 +43,13 @@ unzip the example file rels.zip.  As of now the project only looks for relations
 The project implements two methods of batch factorization: GCD based and CUDA-ECM based
 
 select which method to use using command line option -m (--method) 
+
 0 for CUDA-ECM 
+
 1 for batch GCD
+
 2 for standard ecm+mpqs strategy
+
 3 for mpqs only strategy
 
 If using CUDA-ECM these options are also available:
