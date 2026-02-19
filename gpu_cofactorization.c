@@ -825,7 +825,7 @@ uint32_t do_gpu_pm196(device_thread_ctx_t* t)
 		gpu_args[2].ptr_arg = (void*)(t->gpu_rho_array);	// rho
 		gpu_args[3].ptr_arg = (void*)(t->gpu_one_array);	// unity
 		gpu_args[4].ptr_arg = (void*)(t->gpu_res32_array);	// f
-		gpu_args[5].uint32_arg = 333; // t->b1_3lp;
+		gpu_args[5].uint32_arg = 500; // t->b1_3lp;
 		gpu_args[6].uint32_arg = t->b2_3lp * t->b1_3lp;
 
 		gpu_launch_set(launch, gpu_args);
