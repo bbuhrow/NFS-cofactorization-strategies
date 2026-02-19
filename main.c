@@ -292,8 +292,8 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 		device_thread_ctx_t* gpu_cofactor_ctx =
 			gpu_ctx_init(gpu_dev_ctx, rb);
 
-		gpu_cofactor_ctx->lpba = 31;
-		gpu_cofactor_ctx->lpbr = 31;
+		gpu_cofactor_ctx->lpba = 33;
+		gpu_cofactor_ctx->lpbr = 33;
 		gpu_cofactor_ctx->verbose = vflag;
 		gpu_cofactor_ctx->stop_nofactor = stop_nofactor;
 		do_gpu_cofactorization(gpu_cofactor_ctx, &lcg_state,
@@ -367,7 +367,7 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 		int total_mpqs3 = 0;
 		for (i = 0; i < rb->num_relations; i++)
 		{
-			uint16_t lpb[2] = { 31, 31 };
+			uint16_t lpb[2] = { 33, 33 };
 			uint32_t nlp[2];
 			int j;
 
@@ -541,8 +541,8 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 int main(int argc, char **argv) {
     char fname[80];
 	int batch_alg = 0;
-	int lpbr = 31;
-	int lpba = 31;
+	int lpbr = 33;
+	int lpba = 33;
 	relation_batch_t rb;
 	options_t* options = initOpt();
 
@@ -550,6 +550,24 @@ int main(int argc, char **argv) {
 	batch_alg = options->batch_method;
 
     strcpy(fname, options->file);
+
+	if (0)
+	{
+		mpz_t n, f;
+		mpz_init(n);
+		mpz_init(f);
+	
+		mpz_set_str(n, "41716014795600569829721264369", 10);
+		getfactor_tpm1(n, f, 500);
+		gmp_printf("%Zd\n", f);
+
+		mpz_set_str(n, "12525831385794046220132818133", 10);
+		getfactor_tpm1(n, f, 500);
+		gmp_printf("%Zd\n", f);
+
+		mpz_clear(n);
+		mpz_clear(f);
+	}
 
 	if (batch_alg == 1)
 	{

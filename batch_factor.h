@@ -137,7 +137,7 @@ typedef struct {
     //mpz_t small, large;
     mpz_t _large;
     mpz_t _small;
-    mpz_t n, f1r, f2r, f1a, f2a, t0, t1;
+    mpz_t n, f1r, f2r, f1a, f2a, t0, t1, t2;
 
     double conversion_ratio;
 } relation_batch_t;

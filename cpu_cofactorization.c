@@ -89,11 +89,30 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 			{
 				nf = mpqs3_factor(large_factors[s], lpb[s], &fac);
 				*num_mpqs3 += 1;
+
+				if ((nf < 3) && (mpz_sizeinbase(large_factors[s], 2) > (lpb[s] * 2)))
+				{
+					printf("%Zd doesn't completely factor: ", large_factors[s]);
+					for (i = 0; i < nf; i++)
+						gmp_printf("%Zd ", fac[i]);
+					printf("\n");
+					nf = 0;
+				}
+					
 			}
 			else
 			{
 				nf = mpqs_factor(large_factors[s], lpb[s], &fac);
 				*num_mpqs += 1;
+
+				if ((nf < 3) && (mpz_sizeinbase(large_factors[s], 2) > (lpb[s] * 2)))
+				{
+					printf("%Zd doesn't completely factor: ", large_factors[s]);
+					for (i = 0; i < nf; i++)
+						gmp_printf("%Zd ", fac[i]);
+					printf("\n");
+					nf = 0;
+				}
 			}
 		}
 		else
@@ -124,10 +143,14 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 					}
 					if (mpz_probab_prime_p(fac[0], 1) == 0)
 					{
+						gmp_printf("ecm64 found a composite factor %Zd of %Zd (1a)\n", 
+							fac[0], large_factors[s]);
 						nf = 0;
 					}
 					if (mpz_probab_prime_p(fac[1], 1) == 0)
 					{
+						gmp_printf("residue after ecm64 is composite %Zd of %Zd (2a)\n", 
+							fac[1], large_factors[s]);
 						nf = 0;
 					}
 				}
@@ -136,6 +159,12 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 					// uecm failed, which does sometimes happen
 					nf = mpqs_factor(large_factors[s], lpb[s], &fac);
 					*num_mpqs += 1;
+
+					for (i = 0; i < nf; i++)
+					{
+						if (mpz_sizeinbase(fac[i], 2) > lpb[s])
+							nf = 0;
+					}
 				}
 			}
 			else
@@ -151,11 +180,18 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 				{
 					nf = mpqs3_factor(large_factors[s], lpb[s], &fac);
 					*num_mpqs3 += 1;
+
+					for (i = 0; i < nf; i++)
+					{
+						if (mpz_sizeinbase(fac[i], 2) > lpb[s])
+							nf = 0;
+					}
 				}
 				else if (getfactor_tecm_x8(large_factors[s], fac[0],
 					mpz_sizeinbase(large_factors[s], 2) / 3 - 2, &pran) > 0)
 				{
 					*num_ecm128 += 1;
+
 					if (mpz_sizeinbase(fac[0], 2) <= lpb[s])
 					{
 						mpz_tdiv_q(fac[1], large_factors[s], fac[0]);
@@ -203,7 +239,6 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 							// *num_ecm128 += 1;
 							f64 = 1;
 						}
-						f64 = mpz_get_ull(fac[2]);
 
 						if (f64 > 1)
 						{
@@ -231,9 +266,16 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 						}
 						else
 						{
-							// uecm/tecm failed, which does sometimes happen
+							// uecm/tecm failed or input was too large
 							nf = mpqs_factor(fac[1], lpb[s], &fac);
 							*num_mpqs += 1;
+
+							for (i = 0; i < nf; i++)
+							{
+								if (mpz_sizeinbase(fac[i], 2) > lpb[s])
+									nf = 0;
+							}
+
 							if (nf == 2)
 							{
 								// fac is now set to mpqs's statically allocated
@@ -249,6 +291,7 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 					}
 					else
 					{
+						// found a factor larger than the lpb.
 						// check if the factor is prime.  could again use
 						// a cheaper method.
 						if (mpz_probab_prime_p(fac[0], 1) > 0)
@@ -288,13 +331,9 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 							}
 							else
 							{
-								// we have a composite residue > 64 bits.  
-								// use ecm with high effort first
-								// getfactor_tecm(fac[0], fac[2], 32, &pran);
-								// *num_ecm128 += 1;
+								// split with mpqs below
 								f64 = 1;
 							}
-							f64 = mpz_get_ull(fac[2]);
 
 							if (f64 > 1)
 							{
@@ -323,9 +362,10 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 							}
 							else
 							{
-								// uecm/tecm failed, which does sometimes happen
+								// uecm failed or input was too large
 								nf = mpqs_factor(fac[0], lpb[s], &fac);
 								*num_mpqs += 1;
+
 								if (nf == 2)
 								{
 									// fac is now set to mpqs's statically allocated
@@ -392,6 +432,12 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 					{
 						nf = mpqs_factor(large_factors[s], lpb[s], &fac);
 						*num_mpqs += 1;
+
+						for (i = 0; i < nf; i++)
+						{
+							if (mpz_sizeinbase(fac[i], 2) > lpb[s])
+								nf = 0;
+						}
 					}
 					else
 					{
@@ -437,11 +483,23 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 				{
 					nf = mpqs3_factor(large_factors[s], lpb[s], &fac);
 					*num_mpqs3 += 1;
+
+					for (i = 0; i < nf; i++)
+					{
+						if (mpz_sizeinbase(fac[i], 2) > lpb[s])
+							nf = 0;
+					}
 				}
 				else
 				{
 					nf = mpqs_factor(large_factors[s], lpb[s], &fac);
 					*num_mpqs += 1;
+
+					for (i = 0; i < nf; i++)
+					{
+						if (mpz_sizeinbase(fac[i], 2) > lpb[s])
+							nf = 0;
+					}
 				}
 #endif
 

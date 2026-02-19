@@ -21,6 +21,10 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "mpz_aprcl.h"
 #include <math.h>
 #include "gmp.h"
+#include "mpqs3/mpqs.h"
+#include "mpqs3/mpqs3.h"
+#include "mpqs3/if.h"
+#include "mpqs3/gmp-aux.h"
 
 /*------------------------------------------------------------------
 
@@ -668,6 +672,7 @@ process_r:
         }
 
         if (mpz_sizeinbase(n, 2) < 32) {
+        //if (mpz_cmp_ui(n, rb->lp_cutoff_r)) {
             // this input is already small, assign it to the
             // "all factors <= the largest prime" side, and the other side 
             // has no factors.  
@@ -723,6 +728,7 @@ process_r:
                     much too expensive to find out anything more */
 
         if ((mpz_sizeinbase(f2r, 2) < 32) && (mpz_get_ui(f2r) < rb->lp_cutoff_r))
+        //if (mpz_get_ui(f2r) < rb->lp_cutoff_r)
         {
             // f2r is good.  case if equal to 1 is caught below.
         }
@@ -733,6 +739,7 @@ process_r:
             {
                 // single factor that's too big.
                 if ((mpz_sizeinbase(f2r, 2) < 32) && (mpz_get_ui(f2r) > rb->lp_cutoff_r))
+                //if (mpz_get_ui(f2r) > rb->lp_cutoff_r)
                 {
                     rb->num_abort[0]++;
                     return;
@@ -740,6 +747,7 @@ process_r:
 
                 // 2 factors, at least one of which is too big (residue > LPB^2)
                 if ((mpz_sizeinbase(f2r, 2) < 64) && (mpz_cmp(f2r, rb->lp_cutoff_r2) > 0))
+                //if (mpz_cmp(f2r, rb->lp_cutoff_r2) > 0)
                 {
                     rb->num_abort[1]++;
                     return;
@@ -804,8 +812,8 @@ process_r:
        for relations with three large primes then at most
        two of the four choices need factoring */
 
-    if (mpz_sizeinbase(f1r, 2) <= 32)
-    {
+    //if (mpz_sizeinbase(f1r, 2) <= 32)
+    if (mpz_cmp_ui(n, rb->lp_cutoff_r)) {
         if (mpz_get_ui(f1r) > 1)
         {
             lp_r[num_r++] = mpz_get_ui(f1r);
@@ -1411,11 +1419,10 @@ process_a:
         }
 
         if (mpz_sizeinbase(n, 2) < 32) {
+        //if (mpz_cmp_ui(n, rb->lp_cutoff_a)) {
             // this input is already small, assign it to the
             // "all factors <= the largest prime" side, and the other side 
             // has no factors.  
-            // todo: this actually might not be true (it could be larger and
-            // therefore technically belong in f2r), but does it matter?
             mpz_set(f1a, n);
             mpz_set_ui(f2a, 1);
         }
@@ -1467,6 +1474,7 @@ process_a:
                     much too expensive to find out anything more */
 
         if ((mpz_sizeinbase(f2a, 2) < 32) && (mpz_get_ui(f2a) < rb->lp_cutoff_a))
+        //if (mpz_get_ui(f2a) < rb->lp_cutoff_a)
         {
             // f2r is good.  case if equal to 1 is caught below.
         }
@@ -1477,6 +1485,7 @@ process_a:
             {
                 // single factor that's too big.
                 if ((mpz_sizeinbase(f2a, 2) < 32) && (mpz_get_ui(f2a) > rb->lp_cutoff_a))
+                //if ((mpz_cmp(f2a, rb->lp_cutoff_a2) < 0) && (mpz_cmp(f2a, rb->lp_cutoff_a) > 0))
                 {
                     rb->num_abort_a[0]++;
                     return;
@@ -1484,6 +1493,7 @@ process_a:
 
                 // 2 factors, at least one of which is too big (residue > LPB^2)
                 if ((mpz_sizeinbase(f2a, 2) < 64) && (mpz_cmp(f2a, rb->lp_cutoff_a2) > 0))
+                //if (mpz_cmp(f2a, rb->lp_cutoff_a2) > 0)
                 {
                     rb->num_abort_a[1]++;
                     return;
@@ -1500,7 +1510,8 @@ process_a:
             }
         }
     }
-    else {
+    else 
+    {
         mpz_set_ui(f1a, 0);
         mpz_set_ui(f2a, 0);
 
@@ -1679,8 +1690,8 @@ process_a:
             // process _small, which might need to be split again.
             if (mpz_sizeinbase(_small, 2) > 64)
             {
-                // very unlikely that tecm found 3 valid factors simultaneously.
-                // it is either wrong, or we can swap it with _large to process further.
+                // likely found 2 factors whos' product is greater than 64 bits.
+                // swap this with _large to process further.
                 if (mpz_divisible_p(f1a, _small))
                 {
                     // it was correct, swap it.
@@ -1742,7 +1753,7 @@ process_a:
             }
 
             // process _large, which could need to be split again
-            if (mpz_sizeinbase(_large, 2) > 64)
+            if ((mpz_sizeinbase(_large, 2) > 64) && ((mpz_probab_prime_p(_large, 1) == 0)))
             {
 #ifdef USE_AVX512F
                 success = getfactor_tecm_x8(_large, _small, mpz_sizeinbase(_large, 2) / 3, lcg_state);
@@ -1836,7 +1847,29 @@ process_a:
                 else
                 {
                     rb->num_qs_a++;
-                    return;
+
+                    mpz_t flist[3];
+                    mpz_init(flist[0]);
+                    mpz_init(flist[1]);
+                    mpz_init(flist[2]);
+
+                    mpz_t* fac = flist;
+
+                    gmp_printf("attempting to factor _large = %Zd by mpqs\n", _large);
+                    int nf = mpqs_factor(_large, rb->lp_cutoff_a, &fac);
+
+                    if (nf == 2)
+                    {
+                        gmp_printf("found %Zd and %Zd\n", flist[0], flist[1]);
+                        lp_a[num_a++] = mpz_get_ui(flist[0]);
+                        lp_a[num_a++] = mpz_get_ui(flist[1]);
+                    }
+
+                    mpz_clear(flist[0]);
+                    mpz_clear(flist[1]);
+                    mpz_clear(flist[2]);
+
+                    //return;
                 }
 
             }
@@ -1882,7 +1915,28 @@ process_a:
             // need to run MPQS here.  until we get that going, record how
             // many relations we are missing...
             rb->num_qs_a++;
-            return;
+            
+            mpz_t flist[3];
+            mpz_init(flist[0]);
+            mpz_init(flist[1]);
+            mpz_init(flist[2]);
+
+            mpz_t* fac = flist;
+
+            gmp_printf("attempting to factor %Zd by mpqs\n", f1a);
+            int nf = mpqs_factor(f1a, rb->lp_cutoff_a, &fac);
+
+            if (nf == 3)
+            {
+                gmp_printf("found %Zd, %Zd, %Zd\n", fac[0], fac[1], fac[2]);
+                lp_a[num_a++] = mpz_get_ui(fac[0]);
+                lp_a[num_a++] = mpz_get_ui(fac[1]);
+                lp_a[num_a++] = mpz_get_ui(fac[2]);
+            }
+
+            mpz_clear(flist[0]);
+            mpz_clear(flist[1]);
+            mpz_clear(flist[2]);
         }
     }
 
@@ -2310,6 +2364,7 @@ void relation_batch_init(FILE *logfile, relation_batch_t *rb,
     mpz_init(rb->f2a);
     mpz_init(rb->t0);
     mpz_init(rb->t1);
+    mpz_init(rb->t2);
     mpz_init(rb->_small);
     mpz_init(rb->_large);
     //printf("relation batch is initialized\n");
@@ -2340,6 +2395,7 @@ void relation_batch_free(relation_batch_t *rb, int has_prime_prod) {
     mpz_clear(rb->f2a);
     mpz_clear(rb->t0);
     mpz_clear(rb->t1);
+    mpz_clear(rb->t2);
     mpz_clear(rb->_small);
     mpz_clear(rb->_large);
 }
@@ -2413,7 +2469,7 @@ void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
         c->lp_r_num_words = i;
     }
     else if ((mpz_cmp_ui(unfactored_r_in, 1) > 0) &&
-        (mpz_sizeinbase(unfactored_r_in, 2) < 32))
+        (mpz_sizeinbase(unfactored_r_in, 2) < 64))
     {
         c->lp_r[0] = mpz_get_ui(unfactored_r_in);
     }
@@ -2432,7 +2488,7 @@ void relation_batch_add(int64_t a, uint32_t b, int32_t offset,
         c->lp_a_num_words = i;
     }
     else if ((mpz_cmp_ui(unfactored_a_in, 1) > 0) &&
-        (mpz_sizeinbase(unfactored_a_in, 2) < 32))
+        (mpz_sizeinbase(unfactored_a_in, 2) < 64))
     {
         c->lp_a[0] = mpz_get_ui(unfactored_a_in);
     }

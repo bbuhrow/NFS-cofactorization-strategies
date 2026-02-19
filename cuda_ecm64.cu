@@ -3216,7 +3216,6 @@ __device__ void pm196_stage2_pair(uint32_t* P, uint32_t* acc, uint32_t *n,
     return;
 }
 
-
 __global__ void gbl_pm196(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* one_in, 
     uint32_t* f_out, uint32_t B1, uint32_t B2)
 {
@@ -3229,7 +3228,6 @@ __global__ void gbl_pm196(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* o
         uint32_t rho = rho_in[idx];
         uint32_t n[3];
         uint32_t unityval[3];
-        uint32_t zero[3] = { 0,0,0 };
         uint32_t P[3];
 
         n[0] = n_in[idx * 3 + 0];
@@ -3244,7 +3242,7 @@ __global__ void gbl_pm196(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* o
 
         uint32_t acc[3];
         pm196_stage1(P, n, rho, unityval, B1);
-        modsub96(P, unityval, acc, n);
+        modsub96(P, unityval, acc, n);  // test stage1 P-1
 
         uint32_t gcd[3];
 
@@ -3254,8 +3252,8 @@ __global__ void gbl_pm196(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* o
             (f_out[3 * idx + 1] == 0) &&
             (f_out[3 * idx + 2] == 0)) ||
             ((f_out[3 * idx + 0] == n[0]) &&
-                (f_out[3 * idx + 1] == n[1]) &&
-                (f_out[3 * idx + 2] == n[2])))
+            (f_out[3 * idx + 1] == n[1]) &&
+            (f_out[3 * idx + 2] == n[2])))
         {
             // if we haven't already found a factor, assign this result.
             f_out[3 * idx + 0] = gcd[0];
@@ -3275,43 +3273,14 @@ __global__ void gbl_pm196(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* o
             (f_out[3 * idx + 1] == 0) &&
             (f_out[3 * idx + 2] == 0)) ||
             ((f_out[3 * idx + 0] == n[0]) &&
-                (f_out[3 * idx + 1] == n[1]) &&
-                (f_out[3 * idx + 2] == n[2])))
+            (f_out[3 * idx + 1] == n[1]) &&
+            (f_out[3 * idx + 2] == n[2])))
         {
             // if we haven't already found a factor, assign this result.
             f_out[3 * idx + 0] = gcd[0];
             f_out[3 * idx + 1] = gcd[1];
             f_out[3 * idx + 2] = gcd[2];
         }
-
-#if 0
-
-        uint32_t stg2acc[3];
-#ifdef USE_D30
-        pm196_stage2_D30(&P, rho, n, stg1, stg2, s, unityval, stg2acc);
-#else
-        stg2acc[0] = 1;
-        stg2acc[1] = 0;
-        stg2acc[2] = 0;
-#endif
-
-        gcd96(n, stg2acc, gcd);
-
-        if (((f_out[3 * idx + 0] == 1) &&
-            (f_out[3 * idx + 1] == 0) &&
-            (f_out[3 * idx + 2] == 0)) ||
-            ((f_out[3 * idx + 0] == n[0]) &&
-                (f_out[3 * idx + 1] == n[1]) &&
-                (f_out[3 * idx + 2] == n[2])))
-        {
-            // if we haven't already found a factor, assign this result.
-            f_out[3 * idx + 0] = gcd[0];
-            f_out[3 * idx + 1] = gcd[1];
-            f_out[3 * idx + 2] = gcd[2];
-        }
-
-#endif
-
     }
 
     return;
