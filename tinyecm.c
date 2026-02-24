@@ -2393,6 +2393,30 @@ static int tpm1_ewin333[119] = { // 595 muls
 	4, 12, 13, 14, 13, 0, 7, 3, 3, 12, 3, 9, 8, 4, 6, 15, 0, 3, 9, 11, 14,
 	5, 7, 4, 4, 11, 14, 8, 6, 11, 14, 0, 12, 13, 4, 12, 12, 11, 6, 13, 0,
 	10, 8, 13, 6, 13, 15, 2, 5, 14, 13, 11, 11, 15, 0, 0 };
+static uint32_t tpm1_ewin500[23] = {
+	0xd474c2d4,
+	0xb7330cfe,
+	0xb00f3a15,
+	0x74d81ab8,
+	0x23102ec9,
+	0x1693c48d,
+	0x9845eb35,
+	0x9c0da860,
+	0x9477df49,
+	0x598d1d83,
+	0x8c8bb315,
+	0xa5add55b,
+	0xb193f4f7,
+	0x90e6ec89,
+	0x2e477998,
+	0x6fefd0b8,
+	0xce5273a3,
+	0x8952ee05,
+	0x0f1dc5dd,
+	0xa487cf80,
+	0x484dd0af,
+	0x21644a26,
+	0xfd100000 };
 
 static void tpm1_stage1(monty128_t* mdata, uint64_t *P, uint64_t stg1)
 {
@@ -2423,6 +2447,19 @@ static void tpm1_stage1(monty128_t* mdata, uint64_t *P, uint64_t stg1)
 			sqrmod128(P, P, mdata);
 			sqrmod128(P, P, mdata);
 			if (tpm1_ewin333[i] > 0) mulmod128(P, g[tpm1_ewin333[i]], P, mdata);
+		}
+		break;
+	case 500:
+		for (i = 0; i < 23; i++) {
+			int j;
+			for (j = 7; j >= 0; j--)
+			{
+				sqrmod128(P, P, mdata);
+				sqrmod128(P, P, mdata);
+				sqrmod128(P, P, mdata);
+				sqrmod128(P, P, mdata);
+				mulmod128(P, g[(tpm1_ewin500[i] >> (j * 4)) & 0xf], P, mdata);
+			}
 		}
 		break;
 	}
@@ -2560,7 +2597,7 @@ static void tpm1_stage2_pair(monty128_t* mdata, uint64_t *P, uint64_t *acc, uint
 	uint64_t d[32][2], six[2], x12[2], xmid[2], x24[2], x25[2];
 	uint64_t x36[2], x60[2], x72[2], five[2], pw[2], pgiant[2];
 	int i, j;
-	uint32_t b2 = 25 * b1;
+	uint32_t b2 = 50 * b1;
 
 	// we accumulate f(vw) - f(u) where f(n) = n^2, so that
 	// we can pair together primes vw+/-u
@@ -2687,13 +2724,34 @@ static void tpm1_stage2_pair(monty128_t* mdata, uint64_t *P, uint64_t *acc, uint
 			else copy128(tmp, acc);
 		}
 		break;
+	case 500:
+		while (i < b2)
+		{
+			uint64_t tmp[2], sub[2];
+			int j;
+
+			submod128(pgiant, d[1], sub, mdata->n);
+			mulmod128(acc, sub, acc, mdata);
+
+			for (j = 3; j < 18; j++)
+			{
+				submod128(pgiant, d[j], sub, mdata->n);
+				mulmod128(acc, sub, acc, mdata);
+			}
+
+			mulmod128(pgiant, x14400, pgiant, mdata);
+			mulmod128(pgiant, xmid, pgiant, mdata);
+			mulmod128(xmid, x240x120, xmid, mdata);
+
+			i += 120;
+		}
 
 	}
 
 	return;
 }
 
-static void tinypm1(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2)
+void tinypm1(mpz_t n, mpz_t f, uint32_t B1, uint32_t B2)
 {
 	//attempt to factor n with the elliptic curve method
 	//following brent and montgomery's papers, and CP's book
@@ -5097,7 +5155,7 @@ int getfactor_tpm1(mpz_t n, mpz_t f, uint32_t b1)
 		return 1;
 	}
 
-	tinypm1(n, f, b1, 25 * b1);
+	tinypm1(n, f, b1, 80 * b1);
 	if (mpz_get_ui(f) > 1)
 		return 1;
 	else

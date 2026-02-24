@@ -17,13 +17,11 @@ static int uecm_initialized = 0;
 
 int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 	mpz_t* large_factors, uint16_t* lpb, uint32_t* nlp, int only_mpqs,
-	int *num_mpqs, int *num_mpqs3, int *num_ecm64, int *num_ecm128)
+	int *num_mpqs, int *num_mpqs3, int *num_ecm64, int *num_ecm128,
+	int *factor_stats)
 {
 	uint32_t s, nb[2];
-	uint32_t m, * fm, t, j, done[2], B1, B2, pm1done[2];
-	clock_t cl;
-	mpz_t* large_primes;
-
+	uint32_t j, done[2];
 
 	if (!uecm_initialized)
 	{
@@ -64,16 +62,14 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 	}
 
 	for (s = 0; s < 2; s++) {
-		if (nlp[s] == 2) { nlp[s] = 0; done[s] = 0; pm1done[s] = 0; }
+		if (nlp[s] == 2) { nlp[s] = 0; done[s] = 0;}
 		else done[s] = 2;
 	}
 
-	for (s = first_side;  ; s = 0 - s + 1) {
-		int32_t nf, i;
-		size_t sf[2];
-		mpz_t* fac;
-
-		//gmp_printf("running side %u on inputs %Zd and %Zd\n", s, large_factors[0], large_factors[1]);
+	//for (s = first_side;  ; s = 0 - s + 1) {
+	for (s = first_side; ; s = s == 0 ? 1 : 0) {
+		int nf, i;
+		mpz_t* fac = large_primes2;
 
 		if (done[s] > 1)
 		{
@@ -89,29 +85,74 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 			{
 				nf = mpqs3_factor(large_factors[s], lpb[s], &fac);
 				*num_mpqs3 += 1;
-
-				if ((nf < 3) && (mpz_sizeinbase(large_factors[s], 2) > (lpb[s] * 2)))
-				{
-					printf("%Zd doesn't completely factor: ", large_factors[s]);
-					for (i = 0; i < nf; i++)
-						gmp_printf("%Zd ", fac[i]);
-					printf("\n");
-					nf = 0;
-				}
-					
 			}
 			else
 			{
 				nf = mpqs_factor(large_factors[s], lpb[s], &fac);
 				*num_mpqs += 1;
 
-				if ((nf < 3) && (mpz_sizeinbase(large_factors[s], 2) > (lpb[s] * 2)))
+				int num33 = 0;
+				int num32 = 0;
+				int num31 = 0;
+				int num30 = 0;
+				int num29 = 0;
+
+				if (s == 1)
 				{
-					printf("%Zd doesn't completely factor: ", large_factors[s]);
 					for (i = 0; i < nf; i++)
-						gmp_printf("%Zd ", fac[i]);
-					printf("\n");
-					nf = 0;
+					{
+						j = mpz_sizeinbase(fac[i], 2);
+						if (j <= 30)
+							num30++;
+						if (j == 31)
+							num31++;
+						if (j == 32)
+							num32++;
+						if (j == 33)
+							num33++;
+					}
+					
+					factor_stats[0]++;
+					if (num30 > 0)
+					{
+						factor_stats[1]++;
+					}
+					if (num31 > 0)
+					{
+						factor_stats[2]++;
+					}
+					if (num32 > 0)
+					{
+						factor_stats[3]++;
+					}
+					if (num33 > 0)
+					{
+						factor_stats[4]++;
+					}
+					if ((num30 + num31 + num32 + num33) == 3)
+					{
+						factor_stats[10]++;
+					}
+					if ((num31 + num32 + num33) == 3)
+					{
+						factor_stats[5]++;
+					}
+					if ((num32 + num33) == 3)
+					{
+						factor_stats[6]++;
+					}
+					if (num33 == 3)
+					{
+						factor_stats[7]++;
+					}
+				}
+				else
+				{
+					factor_stats[8] = 1;
+					if (nf == 2)
+					{
+						factor_stats[9] = 1;
+					}
 				}
 			}
 		}
@@ -510,10 +551,8 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 
 	done:
 
-		// _mm256_zeroupper();
-
 		if (nf < 0)return-2;
-		if (!nf)return 1;
+		if (nf == 0)return 1;
 		for (i = 0; i < nf; i++)
 		{
 			if (s == 0)

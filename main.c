@@ -349,6 +349,8 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 
 		gettimeofday(&start, NULL);
 		
+		int factor_stats[11] = { 0 };
+
 		mpz_t large_factors[2];
 		mpz_t large_primes1[3];
 		mpz_t large_primes2[3];
@@ -365,6 +367,8 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 		int total_ecm128 = 0;
 		int total_mpqs = 0;
 		int total_mpqs3 = 0;
+		rb->num_success = 0;
+
 		for (i = 0; i < rb->num_relations; i++)
 		{
 			uint16_t lpb[2] = { 33, 33 };
@@ -410,10 +414,12 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 			}
 			else if (c->lp_a[0] > 0)
 			{
+				printf("no 3lp in relation %d\n", i);
 				mpz_set_ui(large_factors[1], c->lp_a[0]);
 			}
 			else
 			{
+				printf("no 3lp in relation %d\n", i);
 				mpz_set_ui(large_factors[1], 1);
 			}
 
@@ -431,25 +437,7 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 			int num_ecm128 = 0;
 			int num_mpqs = 0;
 			int num_mpqs3 = 0;
-			int status;
-
-			// test of cpu p-1
-			//mpz_set_ui(large_primes1[0], 0);
-			//
-			//if (mpz_sgn(large_factors[1]) < 0)
-			//{
-			//	mpz_neg(large_factors[1], large_factors[1]);
-			//	getfactor_tpm1(large_factors[1], large_primes1[0], 333);
-			//
-			//	if (mpz_cmp_ui(large_primes1[0], 1) > 0)
-			//	{
-			//		//gmp_printf("found factor %Zd of %Zd with P-1\n",
-			//		//	large_primes1[0], large_factors[1]);
-			//		rb->num_success++;
-			//	}
-			//}
-			//
-			//continue;
+			int status = 0;
 			
 			// its faster to start on the 2LP side, have fewer
 			// more-difficult 64b+ inputs to consider.
@@ -457,13 +445,30 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 			{
 				// ecm + mpqs
 				status = cofactorisation(0, lps1, lps2, lfs, lpb, nlp, 0,
-					&num_mpqs, &num_mpqs3, &num_ecm64, &num_ecm128);
+					&num_mpqs, &num_mpqs3, &num_ecm64, &num_ecm128, factor_stats);
 			}
 			else
 			{
 				// mpqs only
+				int this_factor_stats[11] = { 0 };
+
 				status = cofactorisation(0, lps1, lps2, lfs, lpb, nlp, 1,
-					&num_mpqs, &num_mpqs3, &num_ecm64, &num_ecm128);
+					&num_mpqs, &num_mpqs3, &num_ecm64, &num_ecm128, this_factor_stats);
+
+				factor_stats[0] += this_factor_stats[0];
+				if (status == 0)
+				{
+					factor_stats[1] += this_factor_stats[1];
+					factor_stats[2] += this_factor_stats[2];
+					factor_stats[3] += this_factor_stats[3];
+					factor_stats[4] += this_factor_stats[4];
+					factor_stats[5] += this_factor_stats[5];
+					factor_stats[6] += this_factor_stats[6];
+					factor_stats[7] += this_factor_stats[7];
+					factor_stats[10] += this_factor_stats[10];
+				}
+				factor_stats[8] += this_factor_stats[8];
+				factor_stats[9] += this_factor_stats[9];
 			}
 
 			total_ecm64 += num_ecm64;
@@ -495,10 +500,24 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 			printf("\tnum_ecm128 = %d\n", total_ecm128);
 			printf("\tnum_mpqs = %d\n", total_mpqs);
 			printf("\tnum_mpqs3 = %d\n", total_mpqs3);
+
+			if (batch_alg == 3)
+			{
+				printf("3lp factor stats:\n");
+				printf("\tmpqs attempts on 3lps: %d\n", factor_stats[0]);
+				printf("\t%d relations have at least one 30-bit factor (or smaller)\n", factor_stats[1]);
+				printf("\t%d relations have at least one 31-bit factor\n", factor_stats[2]);
+				printf("\t%d relations have at least one 32-bit factor\n", factor_stats[3]);
+				printf("\t%d relations have at least one 33-bit factor\n", factor_stats[4]);
+				printf("\t%d relations have all 30-bit factors or greater\n", factor_stats[10]);
+				printf("\t%d relations have all 31-bit factors or greater\n", factor_stats[5]);
+				printf("\t%d relations have all 32-bit factors or greater\n", factor_stats[6]);
+				printf("\t%d relations have all 33-bit factors or greater\n", factor_stats[7]);
+				printf("\t%d of %d relations had valid 2LP factorizations\n", 
+					factor_stats[9], factor_stats[8]);
+			}
 		}
-
 	}
-
 
 	if ((vflag > 0) && (batch_alg == 1))
 	{
@@ -551,28 +570,11 @@ int main(int argc, char **argv) {
 
     strcpy(fname, options->file);
 
-	if (0)
-	{
-		mpz_t n, f;
-		mpz_init(n);
-		mpz_init(f);
-	
-		mpz_set_str(n, "41716014795600569829721264369", 10);
-		getfactor_tpm1(n, f, 500);
-		gmp_printf("%Zd\n", f);
-
-		mpz_set_str(n, "12525831385794046220132818133", 10);
-		getfactor_tpm1(n, f, 500);
-		gmp_printf("%Zd\n", f);
-
-		mpz_clear(n);
-		mpz_clear(f);
-	}
-
 	if (batch_alg == 1)
 	{
 		char fname[80];
-		sprintf(fname, "bgcd_lpb%d", MAX(lpbr, lpba));
+		int file_bits = MAX(lpbr, lpba);
+		sprintf(fname, "bgcd_lpb%d", file_bits);
 		FILE* fid = fopen(fname, "rb");
 		int compute_pproduct = 1;
 
@@ -582,7 +584,7 @@ int main(int argc, char **argv) {
 		}
 
 		// this initializes the prime product, regardless of whether it is computed or not.
-		relation_batch_init(stdout, &rb, 1000000, 1ULL << ((MAX(lpbr, lpba) - 1)),
+		relation_batch_init(stdout, &rb, 10000000, 1ULL << file_bits,
 			1ull << lpbr, 1ull << lpba, NULL, compute_pproduct);
 
 		if (fid != NULL)
@@ -591,6 +593,8 @@ int main(int argc, char **argv) {
 
 			printf("loaded prime product from file %s: product has %"PRIu64" bits\n",
 				fname, (uint64_t)mpz_sizeinbase(rb.prime_product, 2));
+			printf("memory use is %u MB\n", 
+				(uint64_t)mpz_sizeinbase(rb.prime_product, 2) / 8 / (1 << 20));
 
 			fclose(fid);
 		}
@@ -614,13 +618,13 @@ int main(int argc, char **argv) {
 	else if (batch_alg == 2)
 	{
 		// normal cofactorization, ecm + mpqs
-		relation_batch_init(stdout, &rb, 1000000, 1ULL << (MAX(lpbr, lpba) - 1),
+		relation_batch_init(stdout, &rb, 1000000, 1ULL << (MAX(lpba, lpbr) - 1),
 			1ull << lpbr, 1ull << lpba, NULL, 0);
 	}
 	else if (batch_alg == 3)
 	{
 		// normal cofactorization, mpqs only
-		relation_batch_init(stdout, &rb, 1000000, 1ULL << (MAX(lpbr, lpba) - 1),
+		relation_batch_init(stdout, &rb, 1000000, 1ULL << (MAX(lpba, lpbr) - 1),
 			1ull << lpbr, 1ull << lpba, NULL, 0);
 	}
 	else

@@ -8,27 +8,11 @@
 # 02111-1307, USA.
 
 
-#gcc on osx
-#CFLAGS= -m64 -Ofast -march=native -I/users/buhrow/src/c/gmp_install/gmp-6.2.0/include -Wa,-q
-#CFLAGS= -m64 -Ofast -march=native -I/usr/local/Cellar/gmp4/4.3.2/include -Wa,-q
-
-#windows
-#CFLAGS= -Wall  -Wno-unused-variable -Wno-unused-function -Wno-unused-but-set-variable  -Ofast -fomit-frame-pointer -march=corei7 -mtune=corei7 -I. -Ic:/users/steve/progs/local/include
-#CFLAGS= -Wimplicit-function-declaration -m64 -Ofast -march=native -Ic:/users/steve/progs/local/include
-
-#clang
-#CFLAGS= -Wall -Wno-unused-variable -Wno-unused-function -m64 -Ofast -march=native -I/Users/searle/progs/ensc-dependencies/include
-#CFLAGS= -m64 -Ofast -march=corei7 -I/Users/searle/progs/ensc-dependencies/include 
-#clang for profiling
-#CFLAGS= -O1 -g -march=native -I/Users/searle/progs/ensc-dependencies/include
-
 #linux
-CFLAGS= -m64 -g -Ofast -march=native -I. -I../../gmp-install/6.2.0-gcc/include -fcommon
+CUSTOM_GMP_INC = ../../gmp-install/6.2.0-gcc/include 
+CFLAGS= -m64 -g -Ofast -march=native -I. -I$(CUSTOM_GMP_INC) -fcommon
 
 CC=gcc $(CFLAGS)
-#CC=gcc-4.9 $(CFLAGS)
-#CC=clang $(CFLAGS)
-
 
 SRCFILES=mpqs-config.h mpqs3_sieve.asm mpqs_eval.asm mpqs_gauss.asm if.c mpqs.c mpqs3.c \
 	mpqs_nextpol.asm mpqs_sieve.asm mpqs_sieveinit.asm mpqs_td.asm \
