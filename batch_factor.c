@@ -25,11 +25,7 @@ $Id: batch_factor.c 638 2011-09-11 15:31:19Z jasonp_sf $
 #include "mpqs3/mpqs3.h"
 #include "mpqs3/if.h"
 #include "mpqs3/gmp-aux.h"
-#ifdef _MSC_VER
-#include <intrin.h>
-#else
-#include <cpuid.h>
-#endif
+#include "ytools.h"
 
 /*------------------------------------------------------------------
 
@@ -534,19 +530,11 @@ void multiply_relations(bintree_t* tree, uint32_t first, uint32_t last,
 
 // Function to check for BMI1 support
 int check_bmi1_support() {
-    int cpuInfo[4]; // EAX, EBX, ECX, EDX
+    info_t comp_info;
 
-    // Function number 7 (extended features), subleaf 0
-    __cpuidex(cpuInfo, 7, 0);
+    ytools_get_computer_info(&comp_info, 0);
 
-    // BMI1 flag is bit 3 of the EBX register
-    // The EBX value is stored in cpuInfo[1]
-    if ((cpuInfo[1] >> 3) & 1) {
-        return 1; // BMI1 is supported
-    }
-    else {
-        return 0; // BMI1 is not supported
-    }
+    return (int)comp_info.BMI1;
 }
 
 static int has_bmi1 = -1;
