@@ -800,8 +800,6 @@ __inline uint32_t addmod32(uint32_t x, uint32_t y, uint32_t n)
     return (x >= n - y) ? x - (n - y) : x + y;
 }
 
-
-
 // good to 60 bit inputs
 __inline uint64_t sqrredc60(uint64_t x, uint64_t n, uint64_t nhat)
 {
@@ -814,7 +812,6 @@ __inline uint64_t sqrredc60(uint64_t x, uint64_t n, uint64_t nhat)
     _addcarry_u64(c, th, ah, &x);
     return x;
 }
-
 
 // good to 60 bit inputs
 __inline uint64_t mulredc60(uint64_t x, uint64_t y, uint64_t n, uint64_t nhat)

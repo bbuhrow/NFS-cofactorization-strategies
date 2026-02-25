@@ -93,6 +93,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #ifndef _trail_zcnt64
 
+#if defined( USE_BMI2 )
 #if defined( __INTEL_COMPILER)
 #if defined( USE_BMI2 ) || defined (TARGET_KNL) || defined( USE_AVX512F )
 #define _trail_zcnt64 _tzcnt_u64
@@ -139,6 +140,31 @@ __inline uint64_t _trail_zcnt64(uint64_t x)
     }
     return pos;
 }
+#endif
+
+#else   // no BMI2 (really only BMI1 is needed
+__inline uint64_t _trail_zcnt64(uint64_t x)
+{
+    uint64_t pos;
+    if (x)
+    {
+        x = (x ^ (x - 1)) >> 1;  // Set x's trailing 0s to 1s and zero rest
+        for (pos = 0; x; pos++)
+        {
+            x >>= 1;
+        }
+    }
+    else
+    {
+#ifdef CHAR_BIT
+        pos = CHAR_BIT * sizeof(x);
+#else
+        pos = 8 * sizeof(x);
+#endif
+    }
+    return pos;
+}
+
 #endif
 #endif
 
