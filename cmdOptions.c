@@ -49,14 +49,14 @@ char usageHelp[MAXHELPLEN] = "[options]";
 // command line options, specified by '-'
 char OptionArray[NUMOPTIONS][MAXOPTIONLEN] = { 
     "b1", "b2", "c", "m", "s",
-    "f"};
+    "f", "lpba", "lpbr"};
 
 // command line option aliases, specified by '--'
 // need the same number of strings here, even if
 // some of them are blank (i.e., have no long form alias).
 char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
     "b1", "b2", "curves", "method", "stop",
-    "file"};
+    "file", "lpba", "lpbr" };
 
 // indication of whether or not an option needs a corresponding argument.
 // needs to be the same length as the above two arrays.
@@ -65,7 +65,7 @@ char LongOptionAliases[NUMOPTIONS][MAXOPTIONLEN] = {
 // 2 = argument optional
 int needsArg[NUMOPTIONS] = {
     1,1,1,1,1,
-    1};
+    1,1,1};
 
 // help strings displayed with -h
 // needs to be the same length as the above arrays, even if 
@@ -76,7 +76,9 @@ char OptionHelp[NUMOPTIONS][MAXHELPLEN] = {
     "number of curves for 3LP",
     "method (0 for CUDA, 1 for GCD)",
     "stop 3LP after not finding any valid factors for this many curves",
-    "file with relations to factor"
+    "file with relations to factor",
+    "large prime bound on algebraic side (bits)",
+    "large prime bound on the rational side (bits)"
 };
 // ========================================================================
 
@@ -129,6 +131,14 @@ void applyOpt(char* opt, char* arg, options_t* options)
     else if (strcmp(opt, options->OptionArray[5]) == 0)
     {
         strcpy(options->file, arg);
+    }
+    else if (strcmp(opt, options->OptionArray[6]) == 0)
+    {
+        options->lpba = atoi(arg);
+    }
+    else if (strcmp(opt, options->OptionArray[7]) == 0)
+    {
+        options->lpbr = atoi(arg);
     }
     else
     {
@@ -185,8 +195,10 @@ options_t* initOpt(void)
 
     // ========================================================================
     // default values assigned to switches here:
-    options->b1_3lp = 205;
-    options->b2_3lp = 100;
+    options->b1_3lp = 300;
+    options->b2_3lp = 50;
+    options->lpba = 31;
+    options->lpbr = 31;
     options->curves_3lp = 100;
     options->batch_method = 1;
     options->stop_nofactor = 10;

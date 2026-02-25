@@ -113,6 +113,8 @@ typedef struct {
 								7) non-useful f1r TLP split (factor larger than LPB), at any point in the process */
 	uint32_t num_abort_a[8];	// same but for the other side
 	uint32_t target_relations;  /* number of relations to batch up */
+	int lpba;
+	int lpbr;
 	uint64_t lp_cutoff_r;       /* maximum size of rational factors */
 	mpz_t lp_cutoff_r2;        /* square of lp_cutoff_r */
 	mpz_t lp_cutoff_r3;        /* cube of lp_cutoff_r */

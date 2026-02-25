@@ -40,7 +40,7 @@ extern "C" {
 #include <stdint.h>
 
 // the number of recognized command line options
-#define NUMOPTIONS 6
+#define NUMOPTIONS 8
 // maximum length of command line option strings
 #define MAXOPTIONLEN 20
 // maximum length of help string for each option
@@ -86,6 +86,8 @@ typedef struct
     int verbosity;
     int b1_2lp;
     int b2_2lp;
+    int lpba;
+    int lpbr;
     int curves_2lp;
     int b1_3lp;
     int b2_3lp;

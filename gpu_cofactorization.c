@@ -595,7 +595,7 @@ uint32_t do_gpu_ecm64(device_thread_ctx_t* t)
 	return quit;
 }
 
-uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
+uint32_t do_gpu_ecm_96b(device_thread_ctx_t* t)
 {
 	uint32_t quit = 0;
 
@@ -879,7 +879,7 @@ uint32_t do_gpu_ecm96(device_thread_ctx_t* t)
 	return quit;
 }
 
-uint32_t do_gpu_pm196(device_thread_ctx_t* t)
+uint32_t do_gpu_pm1_96b(device_thread_ctx_t* t)
 {
 	uint32_t quit = 0;
 
@@ -1176,11 +1176,11 @@ uint32_t gpu_cofactorization(device_thread_ctx_t* t)
 	// now run the 3LP kernels
 	t->num_factors_3lp = 0;
 	
-	do_gpu_pm196(t);
-	do_gpu_ecm96(t);
+	do_gpu_pm1_96b(t);
+	do_gpu_ecm_96b(t);
 
-	// any survivors have now survived both (had factors found on both
-	// 2LP and 3LP sides). 
+	// any survivors have now survived both sides (had factors 
+	// found on both R and A sides). 
 	// double check the number that have success fully flagged
 	t->num_factors_3lp = 0;
 	for (i = 0; i < t->rb->num_relations; i++)

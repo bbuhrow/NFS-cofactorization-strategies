@@ -292,8 +292,8 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 		device_thread_ctx_t* gpu_cofactor_ctx =
 			gpu_ctx_init(gpu_dev_ctx, rb);
 
-		gpu_cofactor_ctx->lpba = 33;
-		gpu_cofactor_ctx->lpbr = 33;
+		gpu_cofactor_ctx->lpba = rb->lpba;
+		gpu_cofactor_ctx->lpbr = rb->lpbr;
 		gpu_cofactor_ctx->verbose = vflag;
 		gpu_cofactor_ctx->stop_nofactor = stop_nofactor;
 		do_gpu_cofactorization(gpu_cofactor_ctx, &lcg_state,
@@ -371,7 +371,7 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 
 		for (i = 0; i < rb->num_relations; i++)
 		{
-			uint16_t lpb[2] = { 33, 33 };
+			uint16_t lpb[2] = { rb->lpbr, rb->lpba };
 			uint32_t nlp[2];
 			int j;
 
@@ -560,13 +560,15 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 int main(int argc, char **argv) {
     char fname[80];
 	int batch_alg = 0;
-	int lpbr = 33;
-	int lpba = 33;
+	int lpbr = 31;
+	int lpba = 31;
 	relation_batch_t rb;
 	options_t* options = initOpt();
 
 	processOpts(argc, argv, options);
 	batch_alg = options->batch_method;
+	lpbr = rb.lpbr = options->lpbr;
+	lpba = rb.lpba = options->lpba;
 
     strcpy(fname, options->file);
 
