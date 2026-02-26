@@ -575,7 +575,20 @@ int main(int argc, char **argv) {
 	if (batch_alg == 1)
 	{
 		char fname[80];
-		int file_bits = MAX(lpbr, lpba) - 1;
+
+		// choose how big to make the GCD prime product.
+		// anecdotally, as lpb increases, it becomes more
+		// rare for all factors to be simultaneously large,
+		// so we can reduce the product by an extra bit without
+		// loosing too many of these splits.  The smaller
+		// GCD is a lot faster.
+		int file_bits = MAX(lpbr, lpba);
+		
+		if (file_bits > 32)
+			file_bits -= 2;
+		else
+			file_bits -= 1;
+
 		sprintf(fname, "bgcd_lpb%d", file_bits);
 		FILE* fid = fopen(fname, "rb");
 		int compute_pproduct = 1;
