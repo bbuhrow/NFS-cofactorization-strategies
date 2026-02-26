@@ -359,8 +359,10 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 		mpz_init(large_factors[1]);
 		mpz_init(large_primes1[0]);
 		mpz_init(large_primes1[1]);
+		mpz_init(large_primes1[2]);
 		mpz_init(large_primes2[0]);
 		mpz_init(large_primes2[1]);
+		mpz_init(large_primes2[2]);
 
 		int total_factors = 0;
 		int total_ecm64 = 0;
