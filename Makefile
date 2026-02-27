@@ -4,6 +4,7 @@
 # ============================================================================
 CC = gcc
 TOOLKIT_VERSION=12
+CUDA_PATH = $(CUDA_ROOT)
 CUDA_PATH = /usr/local/cuda-12
 NVCC = $(CUDA_PATH)/bin/nvcc
 CUSTOM_GMP_INC = ../gmp-install/6.2.0-gcc/include 

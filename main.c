@@ -491,6 +491,15 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 
 		ttime = ytools_difftime(&start, &stop);
 
+		mpz_clear(large_factors[0]);
+		mpz_clear(large_factors[1]);
+		mpz_clear(large_primes1[0]);
+		mpz_clear(large_primes1[1]);
+		mpz_clear(large_primes1[2]);
+		mpz_clear(large_primes2[0]);
+		mpz_clear(large_primes2[1]);
+		mpz_clear(large_primes2[2]);
+
 		if (vflag >= 0)
 		{
 			printf("nfs: cofactorization on %u rels from file "
