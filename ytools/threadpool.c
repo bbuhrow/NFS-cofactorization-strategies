@@ -22,6 +22,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ----------------------------------------------------------------------*/
 
+// posix feature-test macro to enable nanosleep in time.h, for newer versions of gcc.
+#define _POSIX_C_SOURCE 200809L
+
+#ifdef __GNUC__
+#include <unistd.h> // usleep
+#endif
+
 #include <stdint.h>
 #include <stdio.h>
 #include "threadpool.h"
@@ -129,11 +136,14 @@ void tpool_stop(tpool_t* t)
 
             //printf("run_lock is busy in thread %d, (count = %d)\n",
             //    t->tindex, count);
-#ifdef _MSC_VER
-            // don't sleep and hope for the best?
-
+#ifdef WIN32
+            Sleep(1);
 #else
-            usleep(1);
+            struct timespec sleep_time, sleep_remaining;
+            sleep_time.tv_sec = 0;         // 0 seconds
+            sleep_time.tv_nsec = 1 * 1000000; // 1,000,000 nanoseconds (0.001 seconds)
+
+            nanosleep(&sleep_time, &sleep_remaining);
 #endif
 
             if (count > 100)

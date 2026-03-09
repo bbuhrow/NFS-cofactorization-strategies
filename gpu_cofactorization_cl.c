@@ -61,6 +61,10 @@
 // something to figure out later.
 //#define HAVE_LASIEVE_MPQS
 
+// posix feature-test macros to enable things in posix headers.
+// this one is for clock_gettime and others in time.h
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -77,7 +81,7 @@
 #endif
 #include "cofactorize.h"
 
-#define HAVE_CUDA_BATCH_FACTOR
+//#define HAVE_CUDA_BATCH_FACTOR
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
 

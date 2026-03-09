@@ -22,6 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ----------------------------------------------------------------------*/
 
+// posix feature-test macro to enable nanosleep in time.h, for newer versions of gcc.
+#define _POSIX_C_SOURCE 200809L
+
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
 #pragma intrinsic(__rdtsc)

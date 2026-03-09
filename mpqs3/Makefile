@@ -8,13 +8,14 @@
 # 02111-1307, USA.
 
 # dependency location (custom)
-#CUSTOM_GMP_INC = ../../gmp-install/6.2.0-gcc/include 
+CUSTOM_GMP_INC = ../../gmp-install/6.2.0-gcc/include 
+# CUSTOM_GMP_INC = ../../mpir/install/mingw/include 
 
 #linux
-#CFLAGS= -m64 -g -Ofast -march=native -I. -I$(CUSTOM_GMP_INC) -fcommon
+CFLAGS= -m64 -g -Ofast -march=native -I. -I$(CUSTOM_GMP_INC) -fcommon
 
 # mingw windows
-CFLAGS= -m64 -g -Ofast -march=native -I. -I$(CUSTOM_GMP_INC) -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fcommon
+#CFLAGS= -m64 -g -Ofast -march=native -I. -I$(CUSTOM_GMP_INC) -DULL_NO_UL -DBITS_PER_GMP_ULONG=32 -fcommon
 
 CC=gcc $(CFLAGS)
 

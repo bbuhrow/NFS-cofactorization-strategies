@@ -149,14 +149,16 @@ CFLAGS := \
     -Wall -Wextra                   \
     -Wno-unused-parameter           \
     -DHAVE_CUDA_BATCH_FACTOR        \
-    -DULL_NO_UL                     \
-    -DBITS_PER_GMP_ULONG=32         \
     -I$(SRC_DIR)                    \
     -I$(SRC_DIR)/ysieve/            \
     -I$(SRC_DIR)/aprcl/             \
 	-I$(SRC_DIR)/ytools/            \
     -I$(OCL_INCLUDE)                \
     -I$(GMP_INCLUDE)
+	
+# include these for mingw builds:
+#    -DULL_NO_UL                     \
+#    -DBITS_PER_GMP_ULONG=32         \
 
 # Debug build: make DEBUG=1
 ifeq ($(DEBUG),1)
