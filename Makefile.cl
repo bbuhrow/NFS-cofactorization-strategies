@@ -110,14 +110,15 @@ SRCS := \
     $(SRC_DIR)/ocl_xface.c          \
     $(SRC_DIR)/gpu_cofactorization_cl.c \
     $(SRC_DIR)/batch_factor.c \
-    $(SRC_DIR)/util.c \
-    $(SRC_DIR)/threadpool.c \
+    $(SRC_DIR)/ytools/ytools.c \
+    $(SRC_DIR)/ytools/threadpool.c \
     $(SRC_DIR)/microecm.c \
     $(SRC_DIR)/tinyecm.c \
     $(SRC_DIR)/monty.c \
     $(SRC_DIR)/cmdOptions.c \
+	$(SRC_DIR)/cofactorize_siqs.c \
     $(SRC_DIR)/arith.c \
-    $(SRC_DIR)/main.c \
+    $(SRC_DIR)/main_cl.c \
     $(SRC_DIR)/mpz-ull.c \
     $(SRC_DIR)/ysieve/presieve.c \
 	$(SRC_DIR)/ysieve/count.c \
@@ -153,6 +154,7 @@ CFLAGS := \
     -I$(SRC_DIR)                    \
     -I$(SRC_DIR)/ysieve/            \
     -I$(SRC_DIR)/aprcl/             \
+	-I$(SRC_DIR)/ytools/            \
     -I$(OCL_INCLUDE)                \
     -I$(GMP_INCLUDE)
 
@@ -164,9 +166,13 @@ endif
 # ---------------------------------------------------------------------------
 # Linker flags
 # ---------------------------------------------------------------------------
+
+# note: liblasieve must be listed before lgmp
 LDFLAGS := \
     $(OCL_LDFLAGS)  \
+	-llasieve \
     $(GMP_LDFLAGS)  \
+	-Lmpqs3 \
     -lm
 
 # On Windows, also link the math and C runtime explicitly when using MinGW
@@ -193,7 +199,8 @@ $(TARGET): $(OBJS)
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR) \
     mkdir -p $(OBJ_DIR)/ysieve \
-    mkdir -p $(OBJ_DIR)/aprcl
+    mkdir -p $(OBJ_DIR)/aprcl \
+	mkdir -p $(OBJ_DIR)/ytools
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<

@@ -1,7 +1,7 @@
 dnl smjs define one of the following (windows, osx, linux)
-dnl define(windows,1)dnl
+define(windows,1)dnl
 dnl define(osx,1)dnl
-define(linux,1)dnl
+dnl define(linux,1)dnl
 
 define(`error_exit',
        `errprint(__file__:__line__`: ERROR: $*

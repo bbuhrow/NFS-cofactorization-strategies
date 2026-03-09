@@ -33,6 +33,7 @@ SOFTWARE.
 
 #if (defined(__unix__) || defined(__MINGW32__) || defined(__clang__))
 #define asm __asm__
+#include <sys/time.h>
 #endif
 
 #if defined(WIN32)

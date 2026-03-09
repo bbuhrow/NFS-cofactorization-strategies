@@ -8,12 +8,16 @@
 #include "mpqs3/mpqs3.h"
 #include "mpqs3/if.h"
 #include "mpqs3/gmp-aux.h"
+#include "cofactorize.h"
 
 #if 1
+
+#define USE_LASIEVE_MPQS
 
 static uint64_t pran;
 static mpz_t uecm_factors[3];
 static int uecm_initialized = 0;
+static tiny_qs_params* params;
 
 int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 	mpz_t* large_factors, uint16_t* lpb, uint32_t* nlp, int only_mpqs,
@@ -29,6 +33,9 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 		mpz_init(uecm_factors[0]);
 		mpz_init(uecm_factors[1]);
 		mpz_init(uecm_factors[2]);
+
+		params = init_tinysiqs();
+
 		pran = 42;
 		uecm_initialized = 1;
 	}
@@ -83,12 +90,23 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 		{
 			if (mpz_sizeinbase(large_factors[s], 2) > 96)
 			{
+#ifdef USE_LASIEVE_MPQS
 				nf = mpqs3_factor(large_factors[s], lpb[s], &fac);
+#else
+				nf = tinysiqs(params, inputs[i], f1, f2, f3, lpb[s]);
+				mpz_set(fac[0], f1);
+				mpz_set(fac[1], f2);
+				mpz_set(fac[2], f3);
+#endif
 				*num_mpqs3 += 1;
 			}
 			else
 			{
+#ifdef USE_LASIEVE_MPQS
 				nf = mpqs_factor(large_factors[s], lpb[s], &fac);
+#else
+
+#endif
 				*num_mpqs += 1;
 
 				int num33 = 0;
@@ -198,7 +216,11 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 				else
 				{
 					// uecm failed, which does sometimes happen
+#ifdef USE_LASIEVE_MPQS
 					nf = mpqs_factor(large_factors[s], lpb[s], &fac);
+#else
+
+#endif
 					*num_mpqs += 1;
 
 					for (i = 0; i < nf; i++)
@@ -219,7 +241,11 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 
 				if (mpz_sizeinbase(large_factors[s], 2) > 104)
 				{
+#ifdef USE_LASIEVE_MPQS
 					nf = mpqs3_factor(large_factors[s], lpb[s], &fac);
+#else
+
+#endif
 					*num_mpqs3 += 1;
 
 					for (i = 0; i < nf; i++)
@@ -308,7 +334,11 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 						else
 						{
 							// uecm/tecm failed or input was too large
+#ifdef USE_LASIEVE_MPQS
 							nf = mpqs_factor(fac[1], lpb[s], &fac);
+#else
+
+#endif
 							*num_mpqs += 1;
 
 							for (i = 0; i < nf; i++)
@@ -404,7 +434,11 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 							else
 							{
 								// uecm failed or input was too large
+#ifdef USE_LASIEVE_MPQS
 								nf = mpqs_factor(fac[0], lpb[s], &fac);
+#else
+
+#endif
 								*num_mpqs += 1;
 
 								if (nf == 2)
@@ -471,7 +505,11 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 
 					if (mpz_sizeinbase(large_factors[s], 2) <= (lpb[s] * 2))
 					{
+#ifdef USE_LASIEVE_MPQS
 						nf = mpqs_factor(large_factors[s], lpb[s], &fac);
+#else
+
+#endif
 						*num_mpqs += 1;
 
 						for (i = 0; i < nf; i++)
@@ -503,7 +541,11 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 								gmp_printf("3LP = ");
 
 								mpz_set(fac[2], fac[0]);
+#ifdef USE_LASIEVE_MPQS
 								nf = 1 + mpqs_factor(fac[2], lpb[s], &fac);
+#else
+
+#endif
 
 								for (i = 0; i < nf; i++)
 									gmp_printf("%Zd ", fac[i]);
@@ -522,7 +564,11 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 
 				if (mpz_sizeinbase(large_factors[s], 2) > 96)
 				{
+#ifdef USE_LASIEVE_MPQS
 					nf = mpqs3_factor(large_factors[s], lpb[s], &fac);
+#else
+
+#endif
 					*num_mpqs3 += 1;
 
 					for (i = 0; i < nf; i++)
@@ -533,7 +579,11 @@ int cofactorisation(int first_side, mpz_t* large_primes1, mpz_t* large_primes2,
 				}
 				else
 				{
+#ifdef USE_LASIEVE_MPQS
 					nf = mpqs_factor(large_factors[s], lpb[s], &fac);
+#else
+
+#endif
 					*num_mpqs += 1;
 
 					for (i = 0; i < nf; i++)

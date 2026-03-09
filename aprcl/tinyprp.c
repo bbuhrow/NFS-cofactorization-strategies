@@ -51,6 +51,10 @@
 #include "ytools.h"
 #include "mpz_aprcl.h"
 
+#if defined(__MINGW32__)
+#include <sys/time.h>
+#endif
+
 //#define GMP_CHECK
 
 #ifdef GMP_CHECK

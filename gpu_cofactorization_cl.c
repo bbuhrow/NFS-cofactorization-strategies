@@ -57,6 +57,10 @@
  *     gpu_args[N].ptr_arg = t->gpu_xxx_array;
  *--------------------------------------------------------------------*/
 
+// mpqs builds in msys2 but crashes right away when run.
+// something to figure out later.
+//#define HAVE_LASIEVE_MPQS
+
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -65,8 +69,14 @@
 #include "batch_factor.h"
 #include "gpu_cofactorization_cl.h"
 #include "gmp-aux.h"
+#ifdef HAVE_LASIEVE_MPQS
+#include "mpqs3/mpqs.h"
+#include "mpqs3/mpqs3.h"
+#include "mpqs3/if.h"
+#include "mpqs3/gmp-aux.h"
+#endif
+#include "cofactorize.h"
 
-/* #define HAVE_LASIEVE_MPQS */
 #define HAVE_CUDA_BATCH_FACTOR
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
@@ -214,7 +224,6 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
             }
             else if (bits2 <= t->lpb_3lp)
             {
-                gmp_printf("large 2lp split: n = %Zd, f = %Zd, c = %Zd\n", zn, zf, zc);
                 // we just factored a 2LP larger than 64 bits.
                 if (t->first_side == 0)
                 {
@@ -241,11 +250,12 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                 int nf = mpqs_factor(zc, t->lpb_3lp, &flist);
                 (*num_mpqs)++;
 #else
-                int nf = 0;
-                gmp_printf("ignoring large cofactor: %Zd\n", zc);
+                (*num_mpqs)++;
+                int nf = tinysiqs(t->params, zc, flist[0], flist[1], flist[2], t->lpb_3lp);
 #endif
                 if (nf == 2)
                 {
+                    //gmp_printf("factored %Zd as %Zd * %Zd by tinysiqs\n", zc, flist[0], flist[1]);
                     (*mpqs_success)++;
                     cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
                     if (t->first_side == 0)
@@ -301,7 +311,6 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
             else if (bits1 <= t->lpb_3lp)
             {
                 // we just factored a 2LP larger than 64 bits.
-                gmp_printf("large 2lp split: n = %Zd, f = %Zd, c = %Zd\n", zn, zf, zc);
                 if (t->first_side == 0)
                 {
                     c->lp_a[0] = mpz_get_ull(zc);
@@ -327,12 +336,13 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                 int nf = mpqs_factor(zf, t->lpb_3lp, &flist);
                 (*num_mpqs)++;
 #else
-                int nf = 0;
-                gmp_printf("ignoring large cofactor: %Zd\n", zf);
+                (*num_mpqs)++;
+                int nf = tinysiqs(t->params, zf, flist[0], flist[1], flist[2], t->lpb_3lp);
 #endif
 
                 if (nf == 2)
                 {
+                    //gmp_printf("factored %Zd as %Zd * %Zd by tinysiqs\n", zf, flist[0], flist[1]);
                     cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
                     (*mpqs_success)++;
                     if (t->first_side == 0)
@@ -354,7 +364,6 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
     }
     return num2lp_retest;
 }
-
 
 
 /* -----------------------------------------------------------------------
@@ -667,7 +676,7 @@ do_gpu_ecm_96b(device_thread_ctx_t *t)
 
         int last_factors = num2lp_retest;
 
-        printf("launching curve %d on %u 96-bit inputs\n", curve, t->array_sz);
+        //printf("launching curve %d on %u 96-bit inputs\n", curve, t->array_sz);
 
         size_t local_sz  = (size_t)threads_per_block;
         size_t global_sz = (size_t)(num_blocks * threads_per_block);
@@ -1452,6 +1461,9 @@ do_gpu_cofactorization(device_thread_ctx_t *t, uint64_t *lcg,
     t->rb_idx_2lp = (uint32_t*)xmalloc(sizeof(uint32_t) * t->array_sz);
     t->rb_idx_3lp = (uint32_t*)xmalloc(sizeof(uint32_t) * t->array_sz);
 
+    // get ready for siqs
+    t->params = init_tinysiqs();
+
     uint32_t kr = 0;
     uint32_t ka = 0;
     t->numres_r = 0;
@@ -1687,6 +1699,8 @@ do_gpu_cofactorization(device_thread_ctx_t *t, uint64_t *lcg,
     free(t->rsq96);
     free(t->one96);
     free(t->factors96);
+
+    t->params = free_tinysiqs(t->params);
 
     /* Device buffer cleanup -- replaces cuMemFree */
     clReleaseMemObject(t->gpu_a_array);

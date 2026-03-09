@@ -37,6 +37,10 @@ SOFTWARE.
 #include <string.h>
 #include <math.h>
 
+#if defined(__MINGW32__)
+#include <sys/time.h>
+#endif
+
 
 //for testing one of 8 bits in a byte in one of 8 lines.
 //bit num picks the row, lines num picks the col.	

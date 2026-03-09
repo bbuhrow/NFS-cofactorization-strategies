@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include "batch_factor.h"
 #include "ocl_xface.h"
+#include "cofactorize.h"
 
 #ifdef HAVE_CUDA_BATCH_FACTOR
 
@@ -47,6 +48,7 @@ typedef struct {
     uint32_t b2_3lp;
     uint32_t curves_3lp;
     uint32_t stop_nofactor;
+    tiny_qs_params* params;
 
     /* ----------------------------------------------------------------
      * OpenCL runtime objects
