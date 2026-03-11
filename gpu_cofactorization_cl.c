@@ -59,7 +59,7 @@
 
 // mpqs builds in msys2 but crashes right away when run.
 // something to figure out later.
-#if defined(__GNUC__) && !defined(WIN32)
+#if defined(__GNUC__) && !defined(__MINGW32__)
 #define HAVE_LASIEVE_MPQS
 #endif
 

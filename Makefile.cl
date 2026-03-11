@@ -157,8 +157,9 @@ CFLAGS := \
     -I$(GMP_INCLUDE)
 	
 # include these for mingw builds:
-#    -DULL_NO_UL                     \
-#    -DBITS_PER_GMP_ULONG=32         \
+ifeq ($(PLATFORM),windows)
+    CFLAGS += -DULL_NO_UL -DBITS_PER_GMP_ULONG=32
+endif
 
 # Debug build: make DEBUG=1
 ifeq ($(DEBUG),1)
