@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include "batch_factor.h"
 #include "cuda_xface.h"
+#include "cofactorize.h"
 
 #ifdef _MSC_VER
 // so I can browse the code in visual studio
@@ -37,6 +38,7 @@ typedef struct {
 	uint32_t b2_3lp;
 	uint32_t curves_3lp;
 	uint32_t stop_nofactor;
+	tiny_qs_params* params;
 
 	// threads need their own context and stream
 	CUcontext gpu_context;

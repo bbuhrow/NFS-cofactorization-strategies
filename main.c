@@ -142,6 +142,102 @@ void mpz_to_bignum32_loc(uint32_t* bignum, mpz_t gmp_in, int words32)
     return;
 }
 
+
+void discard_unsuccessful(relation_batch_t* rb)
+{
+	int i;
+	int j;
+
+	for (i = 0, j = 0; i < rb->num_relations; i++)
+	{
+		if (rb->relations[i].success)
+		{
+			//int k;
+			//if (i < 10)
+			//{
+			//	printf("%d: %"PRId64", %u:\n", i, rb->relations[i].a, rb->relations[i].b);
+			//	for (k = 0; k < MAX_LARGE_PRIMES; k++)
+			//	{
+			//		if (rb->relations[i].lp_r[k] > 1)
+			//			printf("%"PRIu64",", rb->relations[i].lp_r[k]);
+			//	}
+			//	printf(":");
+			//	for (k = 0; k < MAX_LARGE_PRIMES; k++)
+			//	{
+			//		if (rb->relations[i].lp_a[k] > 1)
+			//			printf("%"PRIu64",", rb->relations[i].lp_a[k]);
+			//	}
+			//	printf("\n");
+			//}
+			// copy to next position in output batch
+			memcpy(&rb->relations[j], &rb->relations[i], sizeof(cofactor_t));
+			j++;
+		}
+	}
+	rb->num_relations = j;
+	return;
+}
+
+int cmp_relation(const void* x, const void* y)
+{
+	cofactor_t* xx = (cofactor_t*)x;
+	cofactor_t* yy = (cofactor_t*)y;
+
+	if (xx->a > yy->a)
+		return 1;
+	else if (xx->a == yy->a)
+		return 0;
+	else
+		return -1;
+}
+
+int qcomp_uint64_dsc(const void* x, const void* y)
+{
+	uint64_t* xx = (uint64_t*)x;
+	uint64_t* yy = (uint64_t*)y;
+
+	if (*xx < *yy)
+		return 1;
+	else if (*xx == *yy)
+		return 0;
+	else
+		return -1;
+}
+
+void print_relations(relation_batch_t* rb, char* filename)
+{
+	int i;
+	FILE* fid = fopen(filename, "w");
+
+	if (fid == NULL)
+		return;
+
+	for (i = 0; i < rb->num_relations; i++)
+	{
+		int j;
+
+		fprintf(fid, "%"PRId64",%u:", rb->relations[i].a, rb->relations[i].b);
+		qsort(rb->relations[i].lp_r, MAX_LARGE_PRIMES, sizeof(uint64_t), &qcomp_uint64_dsc);
+		for (j = 0; j < MAX_LARGE_PRIMES; j++)
+		{
+			if (rb->relations[i].lp_r[j] > 1)
+				fprintf(fid, "%"PRIu64",", rb->relations[i].lp_r[j]);
+		}
+		fprintf(fid, ":");
+		qsort(rb->relations[i].lp_a, MAX_LARGE_PRIMES, sizeof(uint64_t), &qcomp_uint64_dsc);
+		for (j = 0; j < MAX_LARGE_PRIMES; j++)
+		{
+			if (rb->relations[i].lp_a[j] > 1)
+				fprintf(fid, "%"PRIu64",", rb->relations[i].lp_a[j]);
+		}
+		fprintf(fid, "\n");
+	}
+
+	fclose(fid);
+	return;
+}
+
+
 uint32_t process_batch(relation_batch_t *rb, int lpbr,
 	int lpba, char* infile, char* outfile, int vflag, int batch_alg,
 	int b1, int b2, int curves, int stop_nofactor)
@@ -296,6 +392,7 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 		gpu_cofactor_ctx->lpbr = rb->lpbr;
 		gpu_cofactor_ctx->verbose = vflag;
 		gpu_cofactor_ctx->stop_nofactor = stop_nofactor;
+
 		do_gpu_cofactorization(gpu_cofactor_ctx, &lcg_state,
 			b1, b2, 0, 0, curves, 0);
 
@@ -314,6 +411,20 @@ uint32_t process_batch(relation_batch_t *rb, int lpbr,
 				"%s took %1.4f sec producing %u relations\n",
 				rb->num_relations, infile, ttime, rb->num_success);
 		}
+
+		// write the processed relations.  Sorted, so we can compare lists
+		// produced by different settings or strategies or tools.
+		printf("writing sorted output... ");
+
+		discard_unsuccessful(rb);
+		qsort(rb->relations, rb->num_relations, sizeof(cofactor_t), &cmp_relation);	// sort by A
+
+		char outfile[80];
+		sprintf(outfile, "%s.cu.out", infile);
+		print_relations(rb, outfile);
+
+		printf("done\n");
+
 #endif
 	}
 	else if (batch_alg == 1)

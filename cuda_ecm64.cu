@@ -2302,7 +2302,20 @@ __device__ void gcd96(uint32_t* u, uint32_t* v, uint32_t* gcd)
 
 #else
     // need alternative 96-bit gcd on MSVC.
+    uint128 a = u128_from_limbs3(u[0], u[1], u[2]);
+    uint128 b = u128_from_limbs3(v[0], v[1], v[2]);
+    uint128 c;
+    uint128 zero = { 0UL, 0UL };
 
+    while (!u128_eq(b, zero)) {
+        u128_divmod(a, b, &c);   /* c = remainder of a / b */
+        a = b;
+        b = c;
+    }
+
+    gcd[0] = (uint32_t)a.lo;
+    gcd[1] = (uint32_t)(a.lo >> 32);
+    gcd[2] = (uint32_t)a.hi;
 
 #endif
 
@@ -2895,8 +2908,8 @@ __global__ void gbl_ecm96(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* o
                         (f_out[3 * idx + 1] == 0) &&
                         (f_out[3 * idx + 2] == 0)) ||
                         ((f_out[3 * idx + 0] == n[0]) &&
-                        (f_out[3 * idx + 1] == n[1]) &&
-                        (f_out[3 * idx + 2] == n[2])))
+                            (f_out[3 * idx + 1] == n[1]) &&
+                            (f_out[3 * idx + 2] == n[2])))
                     {
                         // if we haven't already found a factor, assign this result.
                         f_out[3 * idx + 0] = gcd[0];
@@ -2910,13 +2923,13 @@ __global__ void gbl_ecm96(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* o
             uecm96_stage1(rho, n, &P, stg1, s);
 
             gcd96(n, P.Z, gcd);
-            
+
             if (((f_out[3 * idx + 0] == 1) &&
                 (f_out[3 * idx + 1] == 0) &&
                 (f_out[3 * idx + 2] == 0)) ||
                 ((f_out[3 * idx + 0] == n[0]) &&
-                (f_out[3 * idx + 1] == n[1]) &&
-                (f_out[3 * idx + 2] == n[2])))
+                    (f_out[3 * idx + 1] == n[1]) &&
+                    (f_out[3 * idx + 2] == n[2])))
             {
                 // if we haven't already found a factor, assign this result.
                 f_out[3 * idx + 0] = gcd[0];
@@ -2924,30 +2937,32 @@ __global__ void gbl_ecm96(int num, uint32_t* n_in, uint32_t* rho_in, uint32_t* o
                 f_out[3 * idx + 2] = gcd[2];
             }
 
-            uint32_t stg2acc[3];
+            if (1) {
+                uint32_t stg2acc[3];
 #ifdef USE_D30
-            uecm96_stage2_D30(&P, rho, n, stg1, stg2, s, unityval, stg2acc);
+                uecm96_stage2_D30(&P, rho, n, stg1, stg2, s, unityval, stg2acc);
 #elif defined(USE_D60)
-            uecm96_stage2_D60(&P, rho, n, stg1, stg2, s, unityval, stg2acc);
+                uecm96_stage2_D60(&P, rho, n, stg1, stg2, s, unityval, stg2acc);
 #else
-            stg2acc[0] = 1;
-            stg2acc[1] = 0;
-            stg2acc[2] = 0;
+                stg2acc[0] = 1;
+                stg2acc[1] = 0;
+                stg2acc[2] = 0;
 #endif
-            
-            gcd96(n, stg2acc, gcd);
 
-            if (((f_out[3 * idx + 0] == 1) &&
-                (f_out[3 * idx + 1] == 0) &&
-                (f_out[3 * idx + 2] == 0)) ||
-                ((f_out[3 * idx + 0] == n[0]) &&
-                (f_out[3 * idx + 1] == n[1]) &&
-                (f_out[3 * idx + 2] == n[2])))
-            {
-                // if we haven't already found a factor, assign this result.
-                f_out[3 * idx + 0] = gcd[0];
-                f_out[3 * idx + 1] = gcd[1];
-                f_out[3 * idx + 2] = gcd[2];
+                gcd96(n, stg2acc, gcd);
+
+                if (((f_out[3 * idx + 0] == 1) &&
+                    (f_out[3 * idx + 1] == 0) &&
+                    (f_out[3 * idx + 2] == 0)) ||
+                    ((f_out[3 * idx + 0] == n[0]) &&
+                        (f_out[3 * idx + 1] == n[1]) &&
+                        (f_out[3 * idx + 2] == n[2])))
+                {
+                    // if we haven't already found a factor, assign this result.
+                    f_out[3 * idx + 0] = gcd[0];
+                    f_out[3 * idx + 1] = gcd[1];
+                    f_out[3 * idx + 2] = gcd[2];
+                }
             }
 
             // new curve

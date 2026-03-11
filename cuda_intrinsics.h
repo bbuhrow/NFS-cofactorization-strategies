@@ -581,7 +581,7 @@ modinv64(uint64 a, uint64 p, uint64* likely_gcd) {
 }
 
 __device__ void
-modinv96(uint32 *a, uint32 *p, uint32* inv, uint32 *gcd) {
+modinv96_uint128(uint32 *a, uint32 *p, uint32* inv, uint32 *gcd) {
 
 #ifdef __GNUC__
 
@@ -665,6 +665,189 @@ modinv96(uint32 *a, uint32 *p, uint32* inv, uint32 *gcd) {
 
 #endif
 
+}
+
+/* ------------------------------------------------------------------ */
+/* 128-bit integer emulation for modinv96                             */
+/*                                                                     */
+/* We represent a 128-bit unsigned integer as (hi:lo) where           */
+/*   value = hi * 2^64 + lo                                           */
+/* ------------------------------------------------------------------ */
+typedef struct { uint64 lo; uint64 hi; } uint128;
+
+__device__ uint128 u128_from_limbs3(uint32 w0, uint32 w1, uint32 w2)
+{
+	uint128 r;
+	r.lo = (uint64)w0 | ((uint64)w1 << 32);
+	r.hi = (uint64)w2;
+	return r;
+}
+
+__device__ uint128 u128_add(uint128 a, uint128 b)
+{
+	uint128 r;
+	r.lo = a.lo + b.lo;
+	r.hi = a.hi + b.hi + (r.lo < a.lo ? 1ULL : 0ULL);
+	return r;
+}
+
+__device__ uint128 u128_sub(uint128 a, uint128 b)
+{
+	uint128 r;
+	r.lo = a.lo - b.lo;
+	r.hi = a.hi - b.hi - (a.lo < b.lo ? 1ULL : 0ULL);
+	return r;
+}
+
+__device__ int u128_gt(uint128 a, uint128 b)
+{
+	return (a.hi > b.hi) || (a.hi == b.hi && a.lo > b.lo);
+}
+
+__device__ int u128_ge(uint128 a, uint128 b)
+{
+	return (a.hi > b.hi) || (a.hi == b.hi && a.lo >= b.lo);
+}
+
+__device__ int u128_eq(uint128 a, uint128 b)
+{
+	return (a.hi == b.hi) && (a.lo == b.lo);
+}
+
+__device__ int u128_gt1(uint128 a)   /* a > 1 */
+{
+	return (a.hi > 0) || (a.lo > 1);
+}
+
+/* Scalar multiply: a * scalar (scalar fits in uint64) */
+__device__ uint128 u128_mul_scalar(uint128 a, uint64 s)
+{
+	/* only needed for q *= ps1 where values fit in practice */
+	/* For modinv96 the quotient q fits in a uint64 in all cases */
+	uint128 r;
+	r.lo = a.lo * s;
+	r.hi = a.hi * s;
+	r.hi += __umul64hi(a.lo, s);
+
+	return r;
+}
+
+/*
+ * u128_divmod -- compute q = a / b, rem = a % b  (unsigned, both > 0)
+ *
+ *   Used only in the "large quotient" fast-path of modinv96 (rare).
+ *   Simple restoring division by repeated subtraction of shifted b.
+ */
+__device__ uint128 u128_divmod(uint128 dividend, uint128 divisor, uint128* rem)
+{
+	uint128 q = { 0, 0 };
+	uint128 r = dividend;
+	/* find highest bit of divisor relative to dividend */
+	/* shift divisor left until it exceeds dividend, then shift back */
+	uint32 shift = 0;
+	uint128 d = divisor;
+	while (!u128_gt(d, dividend) && !(d.hi >> 63)) {
+		d.hi = (d.hi << 1) | (d.lo >> 63);
+		d.lo <<= 1;
+		shift++;
+	}
+	/* long division */
+	for (int i = (int)shift; i >= 0; i--) {
+		if (u128_ge(r, d)) {
+			r = u128_sub(r, d);
+			if (i < 64)      q.lo |= (1ULL << i);
+			else             q.hi |= (1ULL << (i - 64));
+		}
+		d.lo = (d.lo >> 1) | (d.hi << 63);
+		d.hi >>= 1;
+	}
+	*rem = r;
+	return q;
+}
+
+/*
+ * modinv96 -- modular inverse for 96-bit values
+ *
+ *   Original used __uint128_t (GCC extension, not available in OpenCL).
+ *   We replace it with the uint128 struct above.
+ */
+__device__ void
+modinv96(uint32* a, uint32* p, uint32* inv, uint32* gcd)
+{
+	uint128 ps1, ps2, dividend, divisor, rem, q, t;
+	uint32 parity;
+
+	uint128 one = { 1ULL, 0ULL };
+	uint128 zero = { 0ULL, 0ULL };
+
+	q = one;
+	rem = u128_from_limbs3(a[0], a[1], a[2]);
+	dividend = u128_from_limbs3(p[0], p[1], p[2]);
+	divisor = u128_from_limbs3(a[0], a[1], a[2]);
+	ps1 = one;
+	ps2 = zero;
+	parity = 0;
+
+	while (u128_gt1(divisor)) {
+		rem = u128_sub(dividend, divisor);
+		t = u128_sub(rem, divisor);
+
+		if (u128_ge(rem, divisor)) {
+			q = u128_add(q, ps1); rem = t; t = u128_sub(t, divisor);
+			if (u128_ge(rem, divisor)) {
+				q = u128_add(q, ps1); rem = t; t = u128_sub(t, divisor);
+				if (u128_ge(rem, divisor)) {
+					q = u128_add(q, ps1); rem = t; t = u128_sub(t, divisor);
+					if (u128_ge(rem, divisor)) {
+						q = u128_add(q, ps1); rem = t; t = u128_sub(t, divisor);
+						if (u128_ge(rem, divisor)) {
+							q = u128_add(q, ps1); rem = t; t = u128_sub(t, divisor);
+							if (u128_ge(rem, divisor)) {
+								q = u128_add(q, ps1); rem = t; t = u128_sub(t, divisor);
+								if (u128_ge(rem, divisor)) {
+									q = u128_add(q, ps1); rem = t; t = u128_sub(t, divisor);
+									if (u128_ge(rem, divisor)) {
+										q = u128_add(q, ps1); rem = t;
+										if (u128_ge(rem, divisor)) {
+											uint128 qr;
+											q = u128_divmod(dividend, divisor, &qr);
+											rem = qr;
+											/* q *= ps1 -- use scalar multiply (q fits in uint64 here) */
+											//uint128 qq = {q.lo * ps1.lo, 0};  /* simplified: bounded case */
+											q = u128_mul_scalar(ps1, q.lo);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		q = u128_add(q, ps2);
+		parity = ~parity;
+		dividend = divisor;
+		divisor = rem;
+		ps2 = ps1;
+		ps1 = q;
+		//q   = one;
+	}
+
+	if (u128_eq(divisor, one)) dividend = divisor;
+
+	/* store gcd (low 96 bits of dividend) */
+	gcd[0] = (uint32)dividend.lo;
+	gcd[1] = (uint32)(dividend.lo >> 32);
+	gcd[2] = (uint32)dividend.hi;
+
+	/* compute inverse */
+	uint128 pval = u128_from_limbs3(p[0], p[1], p[2]);
+	uint128 result = (parity == 0) ? ps1 : u128_sub(pval, ps1);
+
+	inv[0] = (uint32)result.lo;
+	inv[1] = (uint32)(result.lo >> 32);
+	inv[2] = (uint32)result.hi;
 }
 
 /*------------------- Montgomery arithmetic --------------------------*/

@@ -138,11 +138,13 @@ accum3(uint *a0, uint *a1, uint *a2,
        uint b0, uint b1)
 {
     ulong s;
-    s   = (ulong)*a0 + b0;
+    s   = (ulong)(*a0) + b0;
     *a0 = (uint)s;
-    s   = (ulong)*a1 + b1 + (s >> 32);
+    ulong c = (s >> 32);
+    s   = (ulong)(*a1) + b1 + c;
     *a1 = (uint)s;
-    *a2 = *a2 + (uint)(s >> 32);   /* no further carry possible in correct usage */
+    c = (s >> 32);
+    *a2 = *a2 + (uint)c;   /* no further carry possible in correct usage */
 }
 
 /*
@@ -161,11 +163,13 @@ accum3_shift(uint *a0, uint *a1, uint *a2,
              uint b0, uint b1)
 {
     ulong s;
-    s   = (ulong)*a1 + b0;
+    s   = (ulong)(*a1) + b0;
     *a0 = (uint)s;
-    s   = (ulong)*a2 + b1 + (s >> 32);
+    ulong c = (s >> 32);
+    s   = (ulong)(*a2) + b1 + c;
     *a1 = (uint)s;
-    *a2 = (uint)(s >> 32);
+    c = (s >> 32);
+    *a2 = (uint)c;
 }
 
 /*
@@ -245,45 +249,6 @@ innermul(uint a, uint b, uint prevhi, uint accum, uint *carry)
     return   (uint)s;
 }
 
-/* ================================================================== */
-/*  Subtraction (96-bit)                                               */
-/* ================================================================== */
-
-/*
- * possub96 -- subtract b[3] from a[3], store in c[3], no borrow expected
- *
- *   Uses three chained usub_borrow calls (mirrors sub.cc / subc.cc / subc.cc)
- */
-static inline void
-possub96(__global uint *a, __global uint *b, __global uint *c)
-{
-    uint borrow;
-    c[0] = usub_borrow(a[0], b[0], &borrow);
-    uint b1; c[1] = usub_borrow(a[1], b[1], &b1); c[1] = usub_borrow(c[1], borrow, &borrow); borrow += b1;
-    c[2] = usub_borrow(a[2], b[2] + borrow, &borrow);
-}
-
-/*
- * Private-memory variant of possub96 (for use inside kernels where
- * arrays live in __private address space).
- */
-static inline void
-possub96p(uint *a, uint *b, uint *c)
-{
-    uint bw0, bw1, bw2;
-    c[0] = usub_borrow(a[0], b[0], &bw0);
-    uint tmp = usub_borrow(a[1], b[1], &bw1);
-    c[1] = usub_borrow(tmp, bw0, &bw2);
-    bw1 += bw2;
-    c[2] = usub_borrow(a[2], b[2] + bw1, &bw2);
-}
-
-/* cmp96 is identical to possub96 in the original (result holds a-b) */
-static inline void
-cmp96p(uint *a, uint *b, uint *c)
-{
-    possub96p(a, b, c);
-}
 
 /* ================================================================== */
 /*  Modular subtraction                                                */
@@ -310,22 +275,13 @@ modsub32(uint a, uint b, uint p)
 static inline ulong
 modsub64(ulong a, ulong b, ulong p)
 {
-    uint a0 = (uint)a,  a1 = (uint)(a >> 32);
-    uint b0 = (uint)b,  b1 = (uint)(b >> 32);
-    uint p0 = (uint)p,  p1 = (uint)(p >> 32);
-    uint r0, r1, bw0, bw1;
-
-    r0 = usub_borrow(a0, b0, &bw0);
-    uint tmp = usub_borrow(a1, b1, &bw1);
-    r1 = usub_borrow(tmp, bw0, &bw0);
-    bw1 += bw0;
-
-    if (bw1) {
-        uint c;
-        r0 = uadd_carry(r0, p0, &c);
-        r1 = r1 + p1 + c;
+    ulong r = a - b;
+    if (a < b)
+    {
+        r += p;
     }
-    return ((ulong)r1 << 32) | r0;
+
+    return r;
 }
 
 /*
@@ -346,8 +302,11 @@ modsub96(uint *a, uint *b, uint *c, uint *p)
     if (bw2) {
         /* result was negative, add p back */
         uint c0, c1;
+        //r0 = uadd_carry(r0, p[0], &c0);
+        //r1 = uadd_carry(r1 + c0, p[1], &c1);
+        //r2 = r2 + p[2] + c1;
         r0 = uadd_carry(r0, p[0], &c0);
-        r1 = uadd_carry(r1 + c0, p[1], &c1);
+        r1 = uadd_carry(r1, p[1], &c1); uint cx; r1 = uadd_carry(r1, c0, &cx); c1 += cx;
         r2 = r2 + p[2] + c1;
     }
     c[0] = r0; c[1] = r1; c[2] = r2;
@@ -381,26 +340,12 @@ modadd32(uint a, uint b, uint p)
 static inline ulong
 modadd64(ulong a, ulong b, ulong p)
 {
-    uint a0=(uint)a, a1=(uint)(a>>32);
-    uint b0=(uint)b, b1=(uint)(b>>32);
-    uint p0=(uint)p, p1=(uint)(p>>32);
-    uint r0, r1, s0, s1;
-    uint carry, borrow;
+    ulong r = a + b;
 
-    /* r = a + b (with carry out) */
-    r0 = uadd_carry(a0, b0, &carry);
-    uint c2; r1 = uadd_carry(a1, b1, &c2);
-    uint c3; r1 = uadd_carry(r1, carry, &c3);
-    carry = c2 + c3;   /* total carry out of 64-bit add */
+    if ((r < a) || (r >= p))
+        r -= p;
 
-    /* s = r - p (with borrow) */
-    s0 = usub_borrow(r0, p0, &borrow);
-    uint bw2; s1 = usub_borrow(r1, p1, &bw2);
-    uint bw3; s1 = usub_borrow(s1, borrow, &bw3);
-    borrow = usub_borrow(carry, bw2 + bw3, &bw3);
-    /* if borrow == 0, subtraction did not underflow -> use s */
-    if (borrow == 0) { r0 = s0; r1 = s1; }
-    return ((ulong)r1 << 32) | r0;
+    return r;
 }
 
 /*
@@ -416,16 +361,17 @@ modadd96(uint *a, uint *b, uint *c, uint *p)
     /* r = a + b */
     r0 = uadd_carry(a[0], b[0], &carry);
     r1 = uadd_carry(a[1], b[1], &c1); uint cx; r1 = uadd_carry(r1, carry, &cx); c1 += cx;
-    r2 = uadd_carry(a[2], b[2], &c2); uint cy; r2 = uadd_carry(r2, c1, &cy);   c2 += cy;
+    r2 = uadd_carry(a[2], b[2], &c2); uint cy; r2 = uadd_carry(r2, c1, &cy);    c2 += cy;
     carry = c2;
 
     /* s = r - p */
     s0 = usub_borrow(r0, p[0], &borrow);
     s1 = usub_borrow(r1, p[1], &c1); uint bx; s1 = usub_borrow(s1, borrow, &bx); c1 += bx;
     s2 = usub_borrow(r2, p[2], &c2); uint by; s2 = usub_borrow(s2, c1, &by);     c2 += by;
-    borrow = usub_borrow(carry, c2, &c3);
+    borrow = c2; // usub_borrow(carry, c2, &c3);
 
-    if (borrow == 0) { r0=s0; r1=s1; r2=s2; }
+    //if (borrow == 0)
+    if ((carry > 0) || ((carry == 0) && (borrow == 0))) { r0=s0; r1=s1; r2=s2; }
     c[0]=r0; c[1]=r1; c[2]=r2;
 }
 
@@ -553,34 +499,61 @@ modinv32(uint a, uint p)
 static inline ulong
 modinv64(ulong a, ulong p, ulong *likely_gcd)
 {
-    ulong ps1,ps2,dividend,divisor,rem,q,t;
+    ulong ps1, ps2, dividend, divisor, rem, q, t;
     uint parity;
 
-    q=1; rem=a; dividend=p; divisor=a;
-    ps1=1; ps2=0; parity=0;
+    q = 1; rem = a; dividend = p; divisor = a;
+    ps1 = 1; ps2 = 0; parity = 0;
 
     while (divisor > 1) {
-        rem=dividend-divisor;
-        t=rem-divisor;
-        if(rem>=divisor){q+=ps1;rem=t;t-=divisor;
-        if(rem>=divisor){q+=ps1;rem=t;t-=divisor;
-        if(rem>=divisor){q+=ps1;rem=t;t-=divisor;
-        if(rem>=divisor){q+=ps1;rem=t;t-=divisor;
-        if(rem>=divisor){q+=ps1;rem=t;t-=divisor;
-        if(rem>=divisor){q+=ps1;rem=t;t-=divisor;
-        if(rem>=divisor){q+=ps1;rem=t;t-=divisor;
-        if(rem>=divisor){q+=ps1;rem=t;
-        if(rem>=divisor){q=dividend/divisor;
-                         rem=dividend-q*divisor;
-                         q*=ps1;
-        }}}}}}}}}
-        q+=ps2; parity=~parity;
-        dividend=divisor; divisor=rem;
-        ps2=ps1; ps1=q; q=1;
+        rem = dividend - divisor;
+        t = rem - divisor;
+        if (rem >= divisor) {
+            q += ps1; rem = t; t -= divisor;
+            if (rem >= divisor) {
+                q += ps1; rem = t; t -= divisor;
+                if (rem >= divisor) {
+                    q += ps1; rem = t; t -= divisor;
+                    if (rem >= divisor) {
+                        q += ps1; rem = t; t -= divisor;
+                        if (rem >= divisor) {
+                            q += ps1; rem = t; t -= divisor;
+                            if (rem >= divisor) {
+                                q += ps1; rem = t; t -= divisor;
+                                if (rem >= divisor) {
+                                    q += ps1; rem = t; t -= divisor;
+                                    if (rem >= divisor) {
+                                        q += ps1; rem = t;
+                                        if (rem >= divisor) {
+                                            q = dividend / divisor;
+                                            rem = dividend - q * divisor;
+                                            q *= ps1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        q += ps2;
+        parity = ~parity;
+        dividend = divisor;
+        divisor = rem;
+        ps2 = ps1;
+        ps1 = q;
     }
-    if (divisor==1) dividend=divisor;
-    *likely_gcd=dividend;
-    return (parity==0) ? ps1 : p-ps1;
+
+    if (divisor == 1)
+        dividend = divisor;
+    *likely_gcd = dividend;
+
+    if (parity == 0)
+        return ps1;
+    else
+        return p - ps1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -642,13 +615,16 @@ static inline uint128 u128_mul_scalar(uint128 a, ulong s)
     /* For modinv96 the quotient q fits in a ulong in all cases */
     uint128 r;
     r.lo = a.lo * s;
-    /* hi part: a.hi*s + carry from lo */
-    ulong hi_a_s = a.hi * s;
-    ulong carry  = (a.lo != 0 && s > (ulong)(-1) / a.lo) ?
-                   (ulong)((__uint128_t)a.lo * s >> 64) : 0; /* host-side only */
-    /* For kernel use we avoid __uint128_t; use the fact that in modinv96 
-       the values stay bounded within 96 bits so a.hi is small (< 2^32). */
-    r.hi = hi_a_s + carry;
+    r.hi = a.hi * s;
+    r.hi += mul_hi(a.lo, s);
+
+    // /* hi part: a.hi*s + carry from lo */
+    // ulong hi_a_s = a.hi * s;
+    // ulong carry  = (a.lo != 0 && s > (ulong)(-1) / a.lo) ?
+    //                (ulong)((__uint128_t)a.lo * s >> 64) : 0; /* host-side only */
+    // /* For kernel use we avoid __uint128_t; use the fact that in modinv96 
+    //    the values stay bounded within 96 bits so a.hi is small (< 2^32). */
+    // r.hi = hi_a_s + carry;
     return r;
 }
 
@@ -725,8 +701,8 @@ modinv96(uint *a, uint *p, uint *inv, uint *gcd)
             q = u128_divmod(dividend, divisor, &qr);
             rem = qr;
             /* q *= ps1 -- use scalar multiply (q fits in ulong here) */
-            uint128 qq = {q.lo * ps1.lo, 0};  /* simplified: bounded case */
-            q = qq;
+            //uint128 qq = {q.lo * ps1.lo, 0};  /* simplified: bounded case */
+            q = u128_mul_scalar(ps1, q.lo);
         }}}}}}}}}
 
         q = u128_add(q, ps2);
@@ -735,7 +711,7 @@ modinv96(uint *a, uint *p, uint *inv, uint *gcd)
         divisor  = rem;
         ps2 = ps1;
         ps1 = q;
-        q   = one;
+        //q   = one;
     }
 
     if (u128_eq(divisor, one)) dividend = divisor;
@@ -765,6 +741,17 @@ static inline uint
 montmul32_w(uint n)
 {
     uint res = 2 + n;
+    res = res * (2 + n * res);
+    res = res * (2 + n * res);
+    res = res * (2 + n * res);
+    return res * (2 + n * res);
+}
+
+static inline ulong
+montmul64_w(ulong n)
+{
+    ulong res = 2 + n;
+    res = res * (2 + n * res);
     res = res * (2 + n * res);
     res = res * (2 + n * res);
     res = res * (2 + n * res);
@@ -829,19 +816,122 @@ montmul64(ulong a, ulong b, ulong n, uint w)
     acc0 = a0*b0;  acc1 = mul_hi(a0,b0);
     q0   = acc0*w;
     accum3(&acc0,&acc1,&acc2, q0*n0, mul_hi(q0,n0));
-
     accum3_shift(&acc0,&acc1,&acc2, a0*b1, mul_hi(a0,b1));
     accum3      (&acc0,&acc1,&acc2, a1*b0, mul_hi(a1,b0));
     accum3      (&acc0,&acc1,&acc2, q0*n1, mul_hi(q0,n1));
+    
     q1 = acc0*w;
     accum3      (&acc0,&acc1,&acc2, q1*n0, mul_hi(q1,n0));
-
     accum3_shift(&acc0,&acc1,&acc2, a1*b1, mul_hi(a1,b1));
     accum3      (&acc0,&acc1,&acc2, q1*n1, mul_hi(q1,n1));
 
     r = (ulong)acc1<<32 | acc0;
     if (acc2 || r >= n) return r - n;
     return r;
+}
+
+static inline ulong
+montmul64_test(ulong a, ulong b, ulong n, uint w)
+{
+    uint a0 = (uint)a, a1 = (uint)(a >> 32);
+    uint b0 = (uint)b, b1 = (uint)(b >> 32);
+    uint n0 = (uint)n, n1 = (uint)(n >> 32);
+    uint acc0, acc1, acc2 = 0;
+    uint q0, q1;
+    ulong r;
+    
+    //acc0 = a0 * b0;  acc1 = mul_hi(a0, b0);
+    ulong t = (ulong)a0 * (ulong)b0;
+    acc0 = (uint)t;
+    acc1 = (uint)(t >> 32);
+
+    
+    q0 = acc0 * w;
+    //q0 = acc0 * w;
+
+    t = (ulong)q0 * (ulong)n0;
+    uint lo = (uint)t;
+    uint hi = (uint)(t >> 32);
+
+    accum3(&acc0, &acc1, &acc2, lo, hi);
+    //accum3(&acc0, &acc1, &acc2, q0 * n0, mul_hi(q0, n0));
+    
+
+
+    t = (ulong)a0 * (ulong)b1;
+    lo = (uint)t;
+    hi = (uint)(t >> 32);
+
+    accum3_shift(&acc0, &acc1, &acc2, lo, hi);
+    //accum3_shift(&acc0, &acc1, &acc2, a0 * b1, mul_hi(a0, b1));
+    
+
+    t = (ulong)a1 * (ulong)b0;
+    lo = (uint)t;
+    hi = (uint)(t >> 32);
+
+    accum3(&acc0, &acc1, &acc2, lo, hi);
+    //accum3(&acc0, &acc1, &acc2, a1 * b0, mul_hi(a1, b0));
+    
+
+    t = (ulong)q0 * (ulong)n1;
+    lo = (uint)t;
+    hi = (uint)(t >> 32);
+
+    accum3(&acc0, &acc1, &acc2, lo, hi);
+    //accum3(&acc0, &acc1, &acc2, q0 * n1, mul_hi(q0, n1));
+
+    
+    
+    q1 = acc0 * w;
+    //q1 = acc0 * w;
+    
+
+    t = (ulong)q1 * (ulong)n0;
+    lo = (uint)t;
+    hi = (uint)(t >> 32);
+
+    accum3(&acc0, &acc1, &acc2, lo, hi);
+    //accum3(&acc0, &acc1, &acc2, q1 * n0, mul_hi(q1, n0));
+    
+
+    t = (ulong)a1 * (ulong)b1;
+    lo = (uint)t;
+    hi = (uint)(t >> 32);
+
+    accum3_shift(&acc0, &acc1, &acc2, lo, hi);
+    //accum3_shift(&acc0, &acc1, &acc2, a1 * b1, mul_hi(a1, b1));
+    
+
+    t = (ulong)q1 * (ulong)n1;
+    lo = (uint)t;
+    hi = (uint)(t >> 32);
+
+    accum3(&acc0, &acc1, &acc2, lo, hi);
+    //accum3(&acc0, &acc1, &acc2, q1 * n1, mul_hi(q1, n1));
+    
+    r = (ulong)acc1 << 32 | acc0;
+    if (acc2 || r >= n) return r - n;
+    return r;
+
+    //ulong w64 = montmul64_w(n);
+    //
+    //ulong t0 = a * b;
+    //ulong t1 = mul_hi(a, b);
+    //
+    //ulong q = t0 * w64;
+    //
+    //ulong m0 = q * n;
+    //ulong m1 = mul_hi(q, n);
+    //
+    //ulong s0 = t0 + m0;
+    //ulong c = (s0 < t0) ? 1 : 0;
+    //s0 = t1 + m1 + c;
+    //
+    //if (s0 >= n)
+    //    s0 -= n;
+    //
+    //return s0;
 }
 
 /*
@@ -964,6 +1054,10 @@ montmul96(uint *a, uint *b, uint *c, uint *n, uint w)
 static inline void
 montsqr96(uint *a, uint *c, uint *n, uint w)
 {
+#if 0
+    montmul96(a, a, c, n, w);
+    return;
+#else
     uint t[5] = {0,0,0,0,0};
     uint m, C, S;
 
@@ -1038,6 +1132,7 @@ montsqr96(uint *a, uint *c, uint *n, uint w)
         ulong d2b = (ulong)t[2] - n[2] - bw;
         c[0]=s0b; c[1]=s1b; c[2]=(uint)d2b;
     } else { c[0]=cc[0]; c[1]=cc[1]; c[2]=cc[2]; }
+#endif
 #endif
 #endif
 }

@@ -59,7 +59,9 @@
 
 // mpqs builds in msys2 but crashes right away when run.
 // something to figure out later.
-//#define HAVE_LASIEVE_MPQS
+#if defined(__GNUC__) && !defined(WIN32)
+#define HAVE_LASIEVE_MPQS
+#endif
 
 // posix feature-test macros to enable things in posix headers.
 // this one is for clock_gettime and others in time.h
@@ -77,7 +79,9 @@
 #include "mpqs3/mpqs.h"
 #include "mpqs3/mpqs3.h"
 #include "mpqs3/if.h"
+#ifdef ULL_NO_UL
 #include "mpqs3/gmp-aux.h"
+#endif
 #endif
 #include "cofactorize.h"
 
@@ -204,13 +208,16 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
         // more gpu-ecm work, or tackle immediately
         // if too big for that.
 
-        // check cofactor
+        // check if cofactor is small enough to re-process with 64-bit kernel.
         if (bits2 <= 64)
         {
             cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
             uint64_t cofactor = mpz_get_ull(zc);
+
+            // check if cofactor is composite and small enough to
+            // possibly yield 2 correctly-sized primes
             //if (prp_uecm(cofactor) == 0)
-            if (mpz_probab_prime_p(zc, 1) == 0)
+            if ((bits2 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zc, 1) == 0))
             {
                 // record the factor we found
                 if (t->first_side == 0)
@@ -225,6 +232,11 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                 t->modulus_in[num2lp_retest] = cofactor;
                 t->rb_idx_2lp[num2lp_retest] = t->rb_idx_3lp[idx];
                 num2lp_retest++;
+            }
+            else if (bits2 > 2 * t->lpb_3lp)
+            {
+                // this cofactor is too big
+                c->success = 0;
             }
             else if (bits2 <= t->lpb_3lp)
             {
@@ -248,7 +260,11 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
             // not prime we could either try to factor it here
             // (slow) or do another 96-bit pass on it (more code).
             // for now try to do it here with mpqs.
-            if (mpz_probab_prime_p(zc, 1) == 0)
+            
+            // check if cofactor is composite and small enough to
+            // possibly yield 2 correctly-sized primes
+            //if (prp_uecm(cofactor) == 0)
+            if ((bits2 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zc, 1) == 0))
             {
 #ifdef HAVE_LASIEVE_MPQS
                 int nf = mpqs_factor(zc, t->lpb_3lp, &flist);
@@ -277,6 +293,13 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                     c->success |= 0x0f;
                 }
             }
+            else
+            {
+                cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
+                // if it's too big or prime, it's no good
+                c->success = 0;
+            }
+
         }
     }
     else if (bits2 <= t->lpb_3lp)
@@ -294,8 +317,10 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
         {
             cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
             uint64_t cofactor = mpz_get_ull(zf);
+            // check if cofactor is composite and small enough to
+            // possibly yield 2 correctly-sized primes
             //if (prp_uecm(cofactor) == 0)
-            if (mpz_probab_prime_p(zf, 1) == 0)
+            if ((bits1 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zf, 1) == 0))
             {
                 // record the factor we found
                 if (t->first_side == 0)
@@ -311,6 +336,11 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                 t->modulus_in[num2lp_retest] = cofactor;
                 t->rb_idx_2lp[num2lp_retest] = t->rb_idx_3lp[idx];
                 num2lp_retest++;
+            }
+            else if (bits2 > 2 * t->lpb_3lp)
+            {
+                // this cofactor is too big
+                c->success = 0;
             }
             else if (bits1 <= t->lpb_3lp)
             {
@@ -334,7 +364,11 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
             // not prime we could either try to factor it here
             // (slow) or do another 96-bit pass on it (more code)
             // for now try to do it here with mpqs.
-            if (mpz_probab_prime_p(zf, 1) == 0)
+            // 
+            // check if cofactor is composite and small enough to
+            // possibly yield 2 correctly-sized primes
+            //if (prp_uecm(cofactor) == 0)
+            if ((bits1 <= 2 * t->lpb_3lp) && (mpz_probab_prime_p(zf, 1) == 0))
             {
 #ifdef HAVE_LASIEVE_MPQS
                 int nf = mpqs_factor(zf, t->lpb_3lp, &flist);
@@ -363,6 +397,12 @@ int handle_96b_factorization(device_thread_ctx_t* t, int idx,
                     }
                     c->success |= 0x0f;
                 }
+            }
+            else
+            {
+                cofactor_t* c = t->rb->relations + t->rb_idx_3lp[idx];
+                // if it's too big or prime, it's no good
+                c->success = 0;
             }
         }
     }
@@ -542,10 +582,28 @@ do_gpu_ecm64(device_thread_ctx_t *t)
                 t->rho[i]         = t->rho[n - 1];
                 t->a[i]           = t->a[n - 1];
                 t->rb_idx_2lp[i]  = t->rb_idx_2lp[n - 1];
+
+                //// also sync the sigma
+                //t->u32_array[i] = t->u32_array[n - 1];
+                //
+                //// advance the sigma every curve
+                //uint64_t sigma64 = (uint64_t)t->u32_array[i];
+                //t->u32_array[i] = uecm_lcg_rand_32B(7, 0xffffffff, &sigma64);
+
+                // shrink the list
                 n--;
                 c++;
+
+                // visit this index again
                 i--;
             }
+            //else
+            //{
+            //    // advance the sigma every curve
+            //    uint64_t sigma64 = (uint64_t)t->u32_array[i];
+            //    t->u32_array[i] = uecm_lcg_rand_32B(7, 0xffffffff, &sigma64);
+            //}
+
         }
 
         int lastfactors = total_factors;
@@ -561,6 +619,10 @@ do_gpu_ecm64(device_thread_ctx_t *t)
         if (t->array_sz == 0)
             break;
 
+        // temporary: update and sync sigma locally for debug purposes
+        //OCL_TRY(clEnqueueWriteBuffer(t->queue, t->gpu_u32_array, CL_FALSE,
+        //    0, t->array_sz * sizeof(uint32_t), t->u32_array, 0, NULL, NULL))
+
         OCL_TRY(clEnqueueWriteBuffer(t->queue, t->gpu_n_array, CL_FALSE,
             0, t->array_sz * sizeof(uint64_t), t->modulus_in, 0, NULL, NULL))
         OCL_TRY(clEnqueueWriteBuffer(t->queue, t->gpu_rsq_array, CL_FALSE,
@@ -571,6 +633,19 @@ do_gpu_ecm64(device_thread_ctx_t *t)
             0, t->array_sz * sizeof(uint64_t), t->one, 0, NULL, NULL))
 
         curve += 1;
+    }
+
+    // anything unfactored we mark as invalid
+    nofactors = 0;
+    if (t->mode_2lp == 0)
+    {
+        for (i = 0; i < t->array_sz; i++) {
+            cofactor_t* c = t->rb->relations + t->rb_idx_2lp[i];
+            c->success = 0;
+            nofactors++;
+        }
+
+        printf("marked %d unfactored residues as invalid\n", nofactors);
     }
 
     /* end timing */
@@ -684,6 +759,10 @@ do_gpu_ecm_96b(device_thread_ctx_t *t)
 
         size_t local_sz  = (size_t)threads_per_block;
         size_t global_sz = (size_t)(num_blocks * threads_per_block);
+
+        //printf("kernel %s, inputs %d, size <%d,%d>, ", gpu_kernel_names[GPU_ECM96_VEC],
+        //    t->array_sz, num_blocks, threads_per_block);
+
         OCL_TRY(clEnqueueNDRangeKernel(t->queue, launch->kernel_func,
             1, NULL, &global_sz, &local_sz, 0, NULL, NULL))
 
@@ -707,26 +786,53 @@ do_gpu_ecm_96b(device_thread_ctx_t *t)
                     num2lp_retest = handle_96b_factorization(t, i, zf, zc, zn,
                         flist, num2lp_retest, &mpqs_success, &num_mpqs);
 
-                    t->modulus96_in[3*i+0] = t->modulus96_in[3*(n-1)+0];
-                    t->modulus96_in[3*i+1] = t->modulus96_in[3*(n-1)+1];
-                    t->modulus96_in[3*i+2] = t->modulus96_in[3*(n-1)+2];
-                    t->rsq96[3*i+0]        = t->rsq96[3*(n-1)+0];
-                    t->rsq96[3*i+1]        = t->rsq96[3*(n-1)+1];
-                    t->rsq96[3*i+2]        = t->rsq96[3*(n-1)+2];
-                    t->one96[3*i+0]        = t->one96[3*(n-1)+0];
-                    t->one96[3*i+1]        = t->one96[3*(n-1)+1];
-                    t->one96[3*i+2]        = t->one96[3*(n-1)+2];
-                    t->rho[i]              = t->rho[n-1];
-                    t->factors96[3*i+0]    = t->factors96[3*(n-1)+0];
-                    t->factors96[3*i+1]    = t->factors96[3*(n-1)+1];
-                    t->factors96[3*i+2]    = t->factors96[3*(n-1)+2];
-                    t->rb_idx_3lp[i]       = t->rb_idx_3lp[n-1];
+                    t->modulus96_in[3 * i + 0] = t->modulus96_in[3 * (n - 1) + 0];
+                    t->modulus96_in[3 * i + 1] = t->modulus96_in[3 * (n - 1) + 1];
+                    t->modulus96_in[3 * i + 2] = t->modulus96_in[3 * (n - 1) + 2];
+                    t->rsq96[3 * i + 0] = t->rsq96[3 * (n - 1) + 0];
+                    t->rsq96[3 * i + 1] = t->rsq96[3 * (n - 1) + 1];
+                    t->rsq96[3 * i + 2] = t->rsq96[3 * (n - 1) + 2];
+                    t->one96[3 * i + 0] = t->one96[3 * (n - 1) + 0];
+                    t->one96[3 * i + 1] = t->one96[3 * (n - 1) + 1];
+                    t->one96[3 * i + 2] = t->one96[3 * (n - 1) + 2];
+                    t->rho[i] = t->rho[n - 1];
+                    t->factors96[3 * i + 0] = t->factors96[3 * (n - 1) + 0];
+                    t->factors96[3 * i + 1] = t->factors96[3 * (n - 1) + 1];
+                    t->factors96[3 * i + 2] = t->factors96[3 * (n - 1) + 2];
+                    t->rb_idx_3lp[i] = t->rb_idx_3lp[n - 1];
+
+                    // // also sync the sigma
+                    // t->u32_array[i] = t->u32_array[n - 1];
+                    // 
+                    // // advance the sigma every curve
+                    // uint64_t sigma64 = (uint64_t)t->u32_array[i];
+                    // t->u32_array[i] = uecm_lcg_rand_32B(7, 0xffffffff, &sigma64);
+
+                    // shrink the list
                     n--;
                     c++;
+
+                    // visit this index again
                     i--;
                 }
+                //else
+                //{
+                //    // advance the sigma every curve
+                //    uint64_t sigma64 = (uint64_t)t->u32_array[i];
+                //    t->u32_array[i] = uecm_lcg_rand_32B(7, 0xffffffff, &sigma64);
+                //}
             }
+            //else
+            //{
+            //    // advance the sigma every curve
+            //    uint64_t sigma64 = (uint64_t)t->u32_array[i];
+            //    t->u32_array[i] = uecm_lcg_rand_32B(7, 0xffffffff, &sigma64);
+            //}
+
         }
+
+        //printf("found %d factors, %d marked for 2lp retest\n", 
+        //    c, num2lp_retest - last_factors);
 
         if (last_factors == num2lp_retest)
             no_factors++;
@@ -736,7 +842,7 @@ do_gpu_ecm_96b(device_thread_ctx_t *t)
 
         if (no_factors >= max_no_factors) {
             printf("halting after %d curves (%d/%d mpqs calls): "
-                   "last %d curves yielded no factors\n",
+                   "%d curves yielded no factors\n",
                    curve + 1, mpqs_success, num_mpqs, max_no_factors);
             printf("giving up on %d likely unproductive 96-bit residues\n", n);
             curve = max_curves;
@@ -751,6 +857,10 @@ do_gpu_ecm_96b(device_thread_ctx_t *t)
 
         if (t->array_sz == 0)
             break;
+
+        // temporary: update and sync sigma locally for debug purposes
+        // OCL_TRY(clEnqueueWriteBuffer(t->queue, t->gpu_u32_array, CL_FALSE,
+        //     0, t->array_sz * sizeof(uint32_t), t->u32_array, 0, NULL, NULL))
 
         OCL_TRY(clEnqueueWriteBuffer(t->queue, t->gpu_n_array, CL_FALSE,
             0, t->array_sz * 3 * sizeof(uint32_t), t->modulus96_in, 0, NULL, NULL))
@@ -1680,7 +1790,9 @@ do_gpu_cofactorization(device_thread_ctx_t *t, uint64_t *lcg,
 
     /* generate a sigma for each input */
     for (i = 0; i < t->array_sz; i++)
+    {
         t->u32_array[i] = uecm_lcg_rand_32B(7, 0xffffffff, lcg);
+    }
 
     gpu_cofactorization(t);
 
